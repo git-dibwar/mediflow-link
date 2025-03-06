@@ -1,7 +1,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Eye, FileText, Lab } from "lucide-react";
+import { Download, Eye, FileText } from "lucide-react";
 import { 
   Table, 
   TableBody, 
