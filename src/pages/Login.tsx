@@ -6,17 +6,20 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Mail, User as UserIcon, Lock } from "lucide-react";
+import { Mail, User as UserIcon, Lock, Loader2, AlertCircle } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const Login = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Redirect if already logged in
   if (user && !isLoading) {
@@ -27,6 +30,7 @@ const Login = () => {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
+    setAuthError(null);
     
     try {
       if (isSignUp) {
@@ -35,6 +39,9 @@ const Login = () => {
           email,
           password,
           options: {
+            data: {
+              full_name: name,
+            },
             emailRedirectTo: `${window.location.origin}/`,
           },
         });
@@ -54,6 +61,7 @@ const Login = () => {
       }
     } catch (error: any) {
       console.error(`Error ${isSignUp ? "signing up" : "signing in"}:`, error);
+      setAuthError(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
       toast.error(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
     } finally {
       setAuthLoading(false);
@@ -62,6 +70,7 @@ const Login = () => {
 
   const handleGoogleSignIn = async () => {
     try {
+      setAuthError(null);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -72,6 +81,7 @@ const Login = () => {
       if (error) throw error;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
+      setAuthError(error.message || "Failed to sign in with Google");
       toast.error("Failed to sign in with Google");
     }
   };
@@ -90,7 +100,34 @@ const Login = () => {
             </p>
           </div>
 
+          {authError && (
+            <Alert variant="destructive" className="text-sm">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+
           <form onSubmit={handleEmailAuth} className="mt-8 space-y-4">
+            {isSignUp && (
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="pl-10"
+                    required={isSignUp}
+                  />
+                </div>
+              </div>
+            )}
+            
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
@@ -123,8 +160,14 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
                   required
+                  minLength={6}
                 />
               </div>
+              {isSignUp && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Password must be at least 6 characters long
+                </p>
+              )}
             </div>
 
             <Button 
@@ -132,7 +175,12 @@ const Login = () => {
               className="w-full py-6"
               disabled={authLoading || isLoading}
             >
-              {authLoading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
+              {authLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : isSignUp ? "Sign Up" : "Sign In"}
             </Button>
           </form>
 
@@ -151,14 +199,24 @@ const Login = () => {
             variant="outline"
             disabled={isLoading}
           >
-            <UserIcon className="h-5 w-5" />
-            {isLoading ? "Loading..." : "Sign in with Google"}
+            <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+              <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
+                <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z"/>
+                <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z"/>
+                <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.724 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z"/>
+                <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z"/>
+              </g>
+            </svg>
+            {isLoading ? "Loading..." : `Sign ${isSignUp ? "up" : "in"} with Google`}
           </Button>
 
           <div className="text-center mt-6">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setAuthError(null);
+              }}
               className="text-medical-primary hover:underline text-sm"
             >
               {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
