@@ -10,15 +10,8 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-
-interface Report {
-  id: string;
-  title: string;
-  type: string;
-  date: string;
-  provider: string;
-  status: "normal" | "attention" | "critical";
-}
+import { Report, downloadReportFile } from "@/services/reportsService";
+import { toast } from "sonner";
 
 interface ReportListProps {
   reports: Report[];
@@ -32,6 +25,25 @@ const statusColors = {
 };
 
 const ReportList = ({ reports, isLoading = false }: ReportListProps) => {
+  const handleDownload = async (report: Report) => {
+    if (!report.file_path) {
+      toast.warning("No file available for this report");
+      return;
+    }
+    
+    const url = await downloadReportFile(report.file_path);
+    if (url) {
+      // Create a temporary link and click it to download
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = report.title + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-[200px] flex items-center justify-center">
@@ -91,7 +103,12 @@ const ReportList = ({ reports, isLoading = false }: ReportListProps) => {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    <Button size="sm" variant="outline">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => handleDownload(report)}
+                      disabled={!report.file_path}
+                    >
                       <Download className="h-4 w-4 mr-1" />
                       Download
                     </Button>

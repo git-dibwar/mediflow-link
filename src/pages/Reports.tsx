@@ -12,58 +12,23 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-
-// Sample data
-const sampleReports = [
-  {
-    id: "1",
-    title: "Complete Blood Count (CBC)",
-    type: "Blood Test",
-    date: "May 15, 2023",
-    provider: "City Medical Laboratory",
-    status: "normal" as const
-  },
-  {
-    id: "2",
-    title: "Lipid Panel",
-    type: "Blood Test",
-    date: "May 15, 2023",
-    provider: "City Medical Laboratory",
-    status: "attention" as const
-  },
-  {
-    id: "3",
-    title: "Chest X-Ray",
-    type: "Radiology",
-    date: "Apr 28, 2023",
-    provider: "Central Imaging Center",
-    status: "normal" as const
-  },
-  {
-    id: "4",
-    title: "Thyroid Function Test",
-    type: "Blood Test",
-    date: "Apr 15, 2023",
-    provider: "City Medical Laboratory",
-    status: "normal" as const
-  },
-  {
-    id: "5",
-    title: "ECG Report",
-    type: "Cardiology",
-    date: "Mar 10, 2023",
-    provider: "Heart Care Clinic",
-    status: "critical" as const
-  }
-];
+import { useQuery } from "@tanstack/react-query";
+import { fetchReports } from "@/services/reportsService";
+import { useAuth } from "@/hooks/useAuth";
 
 const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  
+  const { data: reports = [], isLoading } = useQuery({
+    queryKey: ['reports', user?.id],
+    queryFn: fetchReports,
+    enabled: !!user
+  });
   
   // Filter reports based on search term and filter type
-  const filteredReports = sampleReports.filter(report => {
+  const filteredReports = reports.filter(report => {
     const matchesSearch = report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           report.provider.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || report.type.toLowerCase() === filterType.toLowerCase();
