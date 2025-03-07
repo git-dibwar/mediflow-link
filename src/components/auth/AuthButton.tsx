@@ -1,9 +1,9 @@
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { supabase } from '@/lib/supabase'
-import { User } from '@supabase/supabase-js'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useNavigate } from 'react-router-dom'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,41 +14,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { LogOut, User as UserIcon } from 'lucide-react'
 import { toast } from "sonner"
+import { useAuth } from '@/hooks/useAuth'
 
 const AuthButton = () => {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, isLoading } = useAuth()
+  const navigate = useNavigate()
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
-      }
-    )
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const handleSignIn = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/`
-        }
-      })
-      
-      if (error) throw error
-    } catch (error) {
-      toast.error("Error signing in with Google")
-      console.error("Error signing in with Google:", error)
-    }
+  const handleSignIn = () => {
+    navigate('/login')
   }
 
   const handleSignOut = async () => {
@@ -62,7 +35,7 @@ const AuthButton = () => {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return <Button variant="outline" disabled>Loading...</Button>
   }
 
@@ -96,7 +69,7 @@ const AuthButton = () => {
   return (
     <Button onClick={handleSignIn} className="flex items-center gap-2">
       <UserIcon className="h-4 w-4" />
-      Sign in with Google
+      Sign in
     </Button>
   )
 }
