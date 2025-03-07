@@ -1,5 +1,4 @@
 
-import { useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { supabase } from '@/lib/supabase'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -29,7 +28,7 @@ const AuthButton = () => {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       toast.success("Successfully signed out")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing out:", error)
       toast.error("Error signing out")
     }
@@ -45,7 +44,7 @@ const AuthButton = () => {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-10 w-10 border-2 border-medical-secondary">
-              <AvatarImage src={user.user_metadata.avatar_url} />
+              <AvatarImage src={user.user_metadata?.avatar_url} />
               <AvatarFallback className="bg-medical-primary text-white">
                 {user.email?.charAt(0).toUpperCase() || "U"}
               </AvatarFallback>
@@ -54,7 +53,7 @@ const AuthButton = () => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>
-            {user.user_metadata.full_name || user.email}
+            {user.user_metadata?.full_name || user.email}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleSignOut}>
