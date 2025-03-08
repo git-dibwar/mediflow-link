@@ -1,7 +1,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { toast } from "sonner"
-import { getCurrentUser, uploadFile } from '@/lib/supabase'
+import { getCurrentUser, getFileUrl } from '@/lib/supabase'
 
 export interface Report {
   id: string
@@ -43,14 +43,46 @@ export const uploadReportFile = async (file: File, reportId: string): Promise<st
     const fileExt = file.name.split('.').pop()
     const fileName = `${reportId}.${fileExt}`
     
-    const result = await uploadFile('medical_files', fileName, file)
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
     
-    if (!result) throw new Error('File upload failed')
+    const filePath = `${user.id}/${fileName}`
     
-    return result.path
+    const { error } = await supabase
+      .storage
+      .from('medical_files')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+    
+    if (error) throw error
+    
+    return filePath
   } catch (error: any) {
     console.error('Error uploading file:', error)
     toast.error('Failed to upload file')
+    return null
+  }
+}
+
+export const downloadReportFile = async (filePath: string): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from('medical_files')
+      .download(filePath)
+    
+    if (error) throw error
+    
+    // Create a blob URL for the file
+    const url = URL.createObjectURL(data)
+    return url
+  } catch (error: any) {
+    console.error('Error downloading file:', error)
+    toast.error('Failed to download file')
     return null
   }
 }
@@ -95,32 +127,6 @@ export const createReport = async (report: Omit<Report, 'id' | 'created_at' | 'u
     console.error('Error creating report:', error)
     toast.error('Failed to create report')
     return null
-  }
-}
-
-export const downloadReportFile = async (filePath: string, fileName: string): Promise<boolean> => {
-  try {
-    const { data, error } = await supabase
-      .storage
-      .from('medical_files')
-      .download(filePath)
-    
-    if (error) throw error
-    
-    // Create a download link
-    const url = URL.createObjectURL(data)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = fileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
-    return true
-  } catch (error: any) {
-    console.error('Error downloading file:', error)
-    toast.error('Failed to download file')
-    return false
   }
 }
 

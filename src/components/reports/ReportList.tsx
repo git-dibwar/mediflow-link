@@ -18,7 +18,7 @@ interface ReportListProps {
   isLoading?: boolean;
 }
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   normal: "bg-green-100 text-green-800",
   attention: "bg-amber-100 text-amber-800",
   critical: "bg-red-100 text-red-800"
@@ -93,7 +93,7 @@ const ReportList = ({ reports, isLoading = false }: ReportListProps) => {
                 <TableCell>{report.date}</TableCell>
                 <TableCell>{report.provider}</TableCell>
                 <TableCell>
-                  <Badge className={`${statusColors[report.status]}`}>
+                  <Badge className={statusColors[report.status]}>
                     {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
                   </Badge>
                 </TableCell>
