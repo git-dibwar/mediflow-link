@@ -24,14 +24,16 @@ const Reports = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Use React Query to fetch reports with proper error handling
+  // Fix: Update React Query to use the correct options structure
   const { data: reports = [], isLoading, error } = useQuery({
     queryKey: ['reports', user?.id],
     queryFn: fetchReports,
     enabled: !!user,
-    onError: (err: any) => {
-      console.error('Error fetching reports:', err);
-      toast.error('Failed to load reports. Please try again.');
+    meta: {
+      onError: (err: any) => {
+        console.error('Error fetching reports:', err);
+        toast.error('Failed to load reports. Please try again.');
+      }
     }
   });
   

@@ -88,12 +88,12 @@ export const setupDatabaseSchema = async () => {
 // File storage helpers
 export const getFileUrl = async (bucket: string, filePath: string) => {
   try {
-    const { data, error } = await supabase
+    // Fix: getPublicUrl no longer returns an error property
+    const { data } = await supabase
       .storage
       .from(bucket)
       .getPublicUrl(filePath)
       
-    if (error) throw error
     return data.publicUrl
   } catch (error: any) {
     console.error('Error getting file URL:', error)
