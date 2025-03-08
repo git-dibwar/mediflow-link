@@ -42,20 +42,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single()
-      
+        .maybeSingle() // Changed from single() to maybeSingle() to handle profile not found
+
       if (error) throw error
-      setProfile(data as Profile)
+      
+      if (data) {
+        console.log("Profile data fetched:", data)
+        setProfile(data as Profile)
+      } else {
+        console.log("No profile found for user", userId)
+        // The profile might be created by the trigger, but it might take time to propagate
+        // Let's try to create it manually as a fallback
+        const userResult = await supabase.auth.getUser()
+        if (userResult.data?.user) {
+          const userData = userResult.data.user
+          const userMeta = userData.user_metadata
+          const userType = userMeta?.user_type || 'patient'
+          const fullName = userMeta?.full_name || 'User'
+          
+          const { data: newProfile } = await supabase
+            .from('profiles')
+            .insert([{ 
+              id: userId, 
+              full_name: fullName,
+              user_type: userType
+            }])
+            .select()
+          
+          if (newProfile) {
+            setProfile(newProfile[0] as Profile)
+          }
+        }
+      }
     } catch (error) {
-      console.error('Error fetching user profile:', error)
+      console.error('Error fetching or creating user profile:', error)
     }
   }
 
   const refreshSession = async () => {
     try {
+      console.log("Refreshing session...")
       const { data, error } = await supabase.auth.getSession()
       if (error) throw error
       
+      console.log("Session data:", data)
       setSession(data.session)
       setUser(data.session?.user ?? null)
       
@@ -101,6 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
+      console.log("Signing in with email:", email)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -110,6 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error
       }
       
+      console.log("Sign in successful, data:", data)
       setSession(data.session)
       setUser(data.user)
       
@@ -127,6 +159,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signUpWithEmail = async (email: string, password: string, fullName: string, userType: UserType) => {
     try {
+      console.log("Signing up with email:", email, "userType:", userType)
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -143,7 +176,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw error
       }
       
-      toast.success('Account created successfully! Please check your email to confirm your account.')
+      console.log("Sign up successful, data:", data)
+      
+      // For development purposes, we'll automatically sign in the user
+      // In production, you would typically ask them to verify their email
+      if (data.user) {
+        await supabase.auth.signInWithPassword({
+          email,
+          password
+        })
+        
+        // Create profile manually if the trigger hasn't done it
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .maybeSingle()
+            
+          if (!profileData && !profileError) {
+            await supabase
+              .from('profiles')
+              .insert([{ 
+                id: data.user.id, 
+                full_name: fullName,
+                user_type: userType
+              }])
+          }
+        } catch (e) {
+          console.error("Error checking/creating profile:", e)
+        }
+      }
+      
+      toast.success('Account created successfully! Redirecting to dashboard...')
       return { error: null }
     } catch (error: any) {
       console.error('Error signing up:', error)

@@ -9,9 +9,14 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, profile, isLoading } = useAuth();
+  const { user, profile, isLoading, refreshSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Ensure we have the latest session data
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
 
   // Fix for back button navigation - register a popstate listener
   useEffect(() => {
@@ -38,9 +43,12 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   // If user is not authenticated, redirect to login page
   if (!user) {
+    console.log("User not authenticated, redirecting to login");
     // Pass the current location to redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
+
+  console.log("User authenticated:", user.id, "Profile:", profile);
 
   // Redirect professional users to their dashboard if accessing patient routes
   if (profile && 
@@ -55,6 +63,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         location.pathname === '/records'
       )
      ) {
+    console.log("Professional user accessing patient routes, redirecting to professional dashboard");
     return <Navigate to="/organization-dashboard" replace />;
   }
 
@@ -66,6 +75,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         location.pathname === '/organization-profile'
       )
      ) {
+    console.log("Patient accessing professional routes, redirecting to patient dashboard");
     return <Navigate to="/dashboard" replace />;
   }
 
