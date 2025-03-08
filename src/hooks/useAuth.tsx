@@ -3,7 +3,7 @@ import { useState, useEffect, createContext, useContext, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 type AuthContextType = {
   user: User | null
@@ -11,6 +11,9 @@ type AuthContextType = {
   isLoading: boolean
   signOut: () => Promise<void>
   refreshSession: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
+  signInWithEmail: (email: string, password: string) => Promise<{ error: any } | undefined>
+  signUpWithEmail: (email: string, password: string, fullName: string) => Promise<{ error: any } | undefined>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,7 +21,10 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   isLoading: true,
   signOut: async () => {},
-  refreshSession: async () => {}
+  refreshSession: async () => {},
+  signInWithGoogle: async () => {},
+  signInWithEmail: async () => ({ error: null }),
+  signUpWithEmail: async () => ({ error: null })
 })
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -54,13 +60,75 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  const signInWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`
+        }
+      })
+      if (error) throw error
+    } catch (error: any) {
+      console.error('Error signing in with Google:', error)
+      toast.error(error.message || 'Failed to sign in with Google')
+    }
+  }
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+      
+      if (error) {
+        throw error
+      }
+      
+      setSession(data.session)
+      setUser(data.user)
+      toast.success('Signed in successfully')
+      return { error: null }
+    } catch (error: any) {
+      console.error('Error signing in:', error)
+      return { error }
+    }
+  }
+
+  const signUpWithEmail = async (email: string, password: string, fullName: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
+      })
+      
+      if (error) {
+        throw error
+      }
+      
+      toast.success('Account created successfully! Please check your email to confirm your account.')
+      return { error: null }
+    } catch (error: any) {
+      console.error('Error signing up:', error)
+      return { error }
+    }
+  }
+
   useEffect(() => {
     // Get initial session
     refreshSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        console.log('Auth state changed:', event)
         setSession(session)
         setUser(session?.user ?? null)
         setIsLoading(false)
@@ -71,7 +139,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut, refreshSession }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      isLoading, 
+      signOut, 
+      refreshSession,
+      signInWithGoogle,
+      signInWithEmail,
+      signUpWithEmail
+    }}>
       {children}
     </AuthContext.Provider>
   )

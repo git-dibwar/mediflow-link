@@ -1,6 +1,6 @@
 
-import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { ReactNode, useEffect } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
@@ -10,6 +10,7 @@ type ProtectedRouteProps = {
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   // If authentication is still loading, show loading indicator
   if (isLoading) {
@@ -25,7 +26,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 
   // If user is not authenticated, redirect to landing page
   if (!user) {
-    return <Navigate to="/" replace />;
+    // Pass the current location to redirect back after login
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // If user is authenticated, render the children

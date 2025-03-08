@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import ReportList from "@/components/reports/ReportList";
@@ -15,17 +16,35 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { fetchReports } from "@/services/reportsService";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const { user } = useAuth();
+  const navigate = useNavigate();
   
-  const { data: reports = [], isLoading } = useQuery({
+  // Use React Query to fetch reports with proper error handling
+  const { data: reports = [], isLoading, error } = useQuery({
     queryKey: ['reports', user?.id],
     queryFn: fetchReports,
-    enabled: !!user
+    enabled: !!user,
+    onError: (err: any) => {
+      console.error('Error fetching reports:', err);
+      toast.error('Failed to load reports. Please try again.');
+    }
   });
+  
+  // Handle back button navigation
+  useEffect(() => {
+    const handleBackButton = (e: PopStateEvent) => {
+      // This ensures the component reacts to browser back/forward buttons
+      console.log('Back button detected in Reports page');
+    };
+
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, []);
   
   // Filter reports based on search term and filter type
   const filteredReports = reports.filter(report => {
@@ -37,13 +56,13 @@ const Reports = () => {
   });
 
   return (
-    <div className="min-h-screen flex flex-col bg-white bg-medical-pattern">
+    <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 bg-medical-pattern">
       <Header />
       <main className="flex-1 medical-container py-8 page-transition">
         <div className="space-y-8">
-          <div className="bg-medical-secondary/50 p-6 rounded-2xl">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Medical Reports</h1>
-            <p className="text-gray-600">
+          <div className="bg-medical-secondary/50 dark:bg-medical-primary/20 p-6 rounded-2xl">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">Medical Reports</h1>
+            <p className="text-gray-600 dark:text-gray-300">
               Access and manage all your medical reports in one place
             </p>
           </div>
@@ -73,6 +92,12 @@ const Reports = () => {
           </div>
           
           <ReportList reports={filteredReports} isLoading={isLoading} />
+          
+          {error && (
+            <div className="text-center py-4">
+              <p className="text-red-500">Failed to load reports. Please try again later.</p>
+            </div>
+          )}
         </div>
       </main>
       <Footer />
