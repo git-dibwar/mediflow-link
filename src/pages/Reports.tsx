@@ -25,7 +25,7 @@ const Reports = () => {
   const navigate = useNavigate();
   
   // Use the correct React Query options structure
-  const { data: reports = [], isLoading, error } = useQuery({
+  const { data: reports = [], isLoading, error, refetch } = useQuery({
     queryKey: ['reports', user?.id],
     queryFn: fetchReports,
     enabled: !!user,
@@ -47,6 +47,11 @@ const Reports = () => {
     window.addEventListener('popstate', handleBackButton);
     return () => window.removeEventListener('popstate', handleBackButton);
   }, []);
+  
+  // Function to handle report deletion and refresh the list
+  const handleReportDeleted = () => {
+    refetch();
+  };
   
   // Filter reports based on search term and filter type
   const filteredReports = reports.filter(report => {
@@ -93,7 +98,11 @@ const Reports = () => {
             </Select>
           </div>
           
-          <ReportList reports={filteredReports} isLoading={isLoading} />
+          <ReportList 
+            reports={filteredReports} 
+            isLoading={isLoading}
+            onReportDeleted={handleReportDeleted}
+          />
           
           {error && (
             <div className="text-center py-4">
