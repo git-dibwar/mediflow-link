@@ -62,6 +62,11 @@ const Reports = () => {
     return matchesSearch && matchesType;
   });
 
+  // Handle filter type change
+  const handleFilterTypeChange = (value: string) => {
+    setFilterType(value);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 bg-medical-pattern">
       <Header />
@@ -84,7 +89,10 @@ const Reports = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select value={filterType} onValueChange={setFilterType}>
+            <Select 
+              value={filterType} 
+              onValueChange={handleFilterTypeChange}
+            >
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Filter by type" />
               </SelectTrigger>
