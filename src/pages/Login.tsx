@@ -1,19 +1,20 @@
 
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Mail, User as UserIcon, Lock, Loader2, AlertCircle } from "lucide-react";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ModeToggle } from "@/components/ui/mode-toggle";
+import { Link } from "react-router-dom";
 
 const Login = () => {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -21,9 +22,17 @@ const Login = () => {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Check if the URL has a signup parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("signup") === "true") {
+      setIsSignUp(true);
+    }
+  }, [location]);
+
   // Redirect if already logged in
   if (user && !isLoading) {
-    navigate("/");
+    navigate("/dashboard");
     return null;
   }
 
@@ -42,7 +51,7 @@ const Login = () => {
             data: {
               full_name: name,
             },
-            emailRedirectTo: `${window.location.origin}/`,
+            emailRedirectTo: `${window.location.origin}/dashboard`,
           },
         });
         
@@ -57,7 +66,7 @@ const Login = () => {
         
         if (error) throw error;
         toast.success("Signed in successfully!");
-        navigate("/");
+        navigate("/dashboard");
       }
     } catch (error: any) {
       console.error(`Error ${isSignUp ? "signing up" : "signing in"}:`, error);
@@ -74,7 +83,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/dashboard`,
         },
       });
 
@@ -87,15 +96,26 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white bg-medical-pattern">
-      <Header />
-      <main className="flex-1 medical-container py-8 flex items-center justify-center">
-        <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-lg">
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between py-4">
+          <Link to="/" className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-medical-primary flex items-center justify-center">
+              <span className="text-white font-bold">M</span>
+            </div>
+            <span className="text-xl font-semibold bg-gradient-to-r from-medical-primary to-blue-700 bg-clip-text text-transparent">MediFlow</span>
+          </Link>
+          <ModeToggle />
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-md p-8 space-y-8 bg-card rounded-xl shadow-sm border border-border">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Welcome to MedConnect</h1>
-            <p className="mt-2 text-gray-600">
+            <h1 className="text-2xl font-bold text-foreground">{isSignUp ? "Create your account" : "Welcome back"}</h1>
+            <p className="mt-2 text-muted-foreground">
               {isSignUp 
-                ? "Create an account to access your medical records" 
+                ? "Sign up to get started with MediFlow" 
                 : "Sign in to access your medical records and consultations"}
             </p>
           </div>
@@ -110,11 +130,11 @@ const Login = () => {
           <form onSubmit={handleEmailAuth} className="mt-8 space-y-4">
             {isSignUp && (
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
                   Full Name
                 </label>
                 <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
                     id="name"
                     type="text"
@@ -129,11 +149,11 @@ const Login = () => {
             )}
             
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
@@ -147,11 +167,11 @@ const Login = () => {
             </div>
             
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   id="password"
                   type="password"
@@ -164,7 +184,7 @@ const Login = () => {
                 />
               </div>
               {isSignUp && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Password must be at least 6 characters long
                 </p>
               )}
@@ -172,7 +192,7 @@ const Login = () => {
 
             <Button 
               type="submit" 
-              className="w-full py-6"
+              className="w-full"
               disabled={authLoading || isLoading}
             >
               {authLoading ? (
@@ -186,16 +206,16 @@ const Login = () => {
 
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <div className="w-full border-t border-border"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              <span className="px-2 bg-card text-muted-foreground">Or continue with</span>
             </div>
           </div>
 
           <Button
             onClick={handleGoogleSignIn}
-            className="w-full py-6 flex items-center justify-center gap-2"
+            className="w-full flex items-center justify-center gap-2"
             variant="outline"
             disabled={isLoading}
           >
@@ -216,6 +236,14 @@ const Login = () => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setAuthError(null);
+                // Update URL without reloading the page
+                const url = new URL(window.location.href);
+                if (isSignUp) {
+                  url.searchParams.delete("signup");
+                } else {
+                  url.searchParams.set("signup", "true");
+                }
+                window.history.pushState({}, "", url);
               }}
               className="text-medical-primary hover:underline text-sm"
             >
@@ -224,7 +252,6 @@ const Login = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };
