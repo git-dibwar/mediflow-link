@@ -17,6 +17,8 @@ import Medications from "./pages/Medications";
 import Appointments from "./pages/Appointments";
 import Records from "./pages/Records";
 import LandingPage from "./pages/LandingPage";
+import OrganizationDashboard from "./pages/OrganizationDashboard";
+import OrganizationProfile from "./pages/OrganizationProfile";
 
 const queryClient = new QueryClient();
 
@@ -33,7 +35,7 @@ const App = () => (
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<Login />} />
               
-              {/* Protected routes */}
+              {/* Protected patient routes */}
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
               <Route path="/consultations" element={<ProtectedRoute><Consultations /></ProtectedRoute>} />
@@ -41,6 +43,10 @@ const App = () => (
               <Route path="/medications" element={<ProtectedRoute><Medications /></ProtectedRoute>} />
               <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
               <Route path="/records" element={<ProtectedRoute><Records /></ProtectedRoute>} />
+              
+              {/* Protected professional routes */}
+              <Route path="/organization-dashboard" element={<ProtectedRoute><OrganizationDashboard /></ProtectedRoute>} />
+              <Route path="/organization-profile" element={<ProtectedRoute><OrganizationProfile /></ProtectedRoute>} />
               
               {/* Catch-all route */}
               <Route path="*" element={<NotFound />} />

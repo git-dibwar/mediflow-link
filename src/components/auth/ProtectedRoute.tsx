@@ -9,8 +9,20 @@ type ProtectedRouteProps = {
 };
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, isLoading } = useAuth();
+  const { user, profile, isLoading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Fix for back button navigation - register a popstate listener
+  useEffect(() => {
+    const handlePopState = () => {
+      // This helps React Router handle browser back/forward navigation correctly
+      console.log('Back/forward navigation detected at:', location.pathname);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [location]);
 
   // If authentication is still loading, show loading indicator
   if (isLoading) {
@@ -24,13 +36,40 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If user is not authenticated, redirect to landing page
+  // If user is not authenticated, redirect to login page
   if (!user) {
     // Pass the current location to redirect back after login
-    return <Navigate to="/" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If user is authenticated, render the children
+  // Redirect professional users to their dashboard if accessing patient routes
+  if (profile && 
+      profile.user_type !== 'patient' && 
+      (
+        location.pathname === '/dashboard' ||
+        location.pathname === '/reports' ||
+        location.pathname === '/consultations' ||
+        location.pathname === '/providers' ||
+        location.pathname === '/medications' ||
+        location.pathname === '/appointments' ||
+        location.pathname === '/records'
+      )
+     ) {
+    return <Navigate to="/organization-dashboard" replace />;
+  }
+
+  // Redirect patients to their dashboard if accessing professional routes
+  if (profile && 
+      profile.user_type === 'patient' && 
+      (
+        location.pathname === '/organization-dashboard' ||
+        location.pathname === '/organization-profile'
+      )
+     ) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If user is authenticated and has correct role for the route, render the children
   return <>{children}</>;
 };
 

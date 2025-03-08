@@ -70,6 +70,41 @@ export const updateUserProfile = async (userId: string, updates: any) => {
   }
 }
 
+// Get user organization
+export const getUserOrganization = async (userId: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('owner_id', userId)
+      .maybeSingle()
+
+    if (error) throw error
+    return data
+  } catch (error: any) {
+    console.error('Error getting organization:', error)
+    return null
+  }
+}
+
+// Create or update organization
+export const upsertOrganization = async (organization: any) => {
+  try {
+    const { data, error } = await supabase
+      .from('organizations')
+      .upsert(organization)
+      .select()
+
+    if (error) throw error
+    toast.success('Organization information saved successfully')
+    return data[0]
+  } catch (error: any) {
+    console.error('Error saving organization:', error)
+    toast.error('Failed to save organization information')
+    return null
+  }
+}
+
 // Database schema helper functions
 export const setupDatabaseSchema = async () => {
   // This function would normally be run once during app initialization
@@ -88,7 +123,6 @@ export const setupDatabaseSchema = async () => {
 // File storage helpers
 export const getFileUrl = async (bucket: string, filePath: string) => {
   try {
-    // Fix: getPublicUrl no longer returns an error property
     const { data } = await supabase
       .storage
       .from(bucket)
@@ -104,26 +138,74 @@ export const getFileUrl = async (bucket: string, filePath: string) => {
 // Upload file to storage
 export const uploadFile = async (bucket: string, filePath: string, file: File) => {
   try {
+    // Ensure path includes user ID for security
+    const user = await getCurrentUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    
+    // Create a path that includes the user ID
+    const securePath = `${user.id}/${filePath}`
+    
     const { data, error } = await supabase
       .storage
       .from(bucket)
-      .upload(filePath, file, {
+      .upload(securePath, file, {
         cacheControl: '3600',
         upsert: true
       })
       
     if (error) throw error
     toast.success('File uploaded successfully')
-    return data
+    return { ...data, path: securePath }
   } catch (error: any) {
     console.error('Error uploading file:', error)
-    toast.error('Failed to upload file')
+    toast.error('Failed to upload file: ' + error.message)
     return null
   }
 }
 
-// RLS policies should be set up in Supabase dashboard:
-// - Users can only select their own records
-// - Users can insert their own records
-// - Users can update their own records
-// - Users can delete their own records
+// Download a file
+export const downloadFile = async (bucket: string, filePath: string, fileName: string) => {
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from(bucket)
+      .download(filePath)
+      
+    if (error) throw error
+    
+    // Create a download link
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName || 'download'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    return true
+  } catch (error: any) {
+    console.error('Error downloading file:', error)
+    toast.error('Failed to download file')
+    return false
+  }
+}
+
+// Delete a file
+export const deleteFile = async (bucket: string, filePath: string) => {
+  try {
+    const { error } = await supabase
+      .storage
+      .from(bucket)
+      .remove([filePath])
+      
+    if (error) throw error
+    toast.success('File deleted successfully')
+    return true
+  } catch (error: any) {
+    console.error('Error deleting file:', error)
+    toast.error('Failed to delete file')
+    return false
+  }
+}

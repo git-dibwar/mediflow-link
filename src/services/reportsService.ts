@@ -1,6 +1,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { toast } from "sonner"
+import { getCurrentUser, uploadFile } from '@/lib/supabase'
 
 export interface Report {
   id: string
@@ -16,9 +17,15 @@ export interface Report {
 
 export const fetchReports = async (): Promise<Report[]> => {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+    
     const { data, error } = await supabase
       .from('reports')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     
     if (error) throw error
@@ -35,19 +42,12 @@ export const uploadReportFile = async (file: File, reportId: string): Promise<st
   try {
     const fileExt = file.name.split('.').pop()
     const fileName = `${reportId}.${fileExt}`
-    const filePath = `reports/${fileName}`
     
-    const { error } = await supabase
-      .storage
-      .from('medical_files')
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: true
-      })
+    const result = await uploadFile('medical_files', fileName, file)
     
-    if (error) throw error
+    if (!result) throw new Error('File upload failed')
     
-    return filePath
+    return result.path
   } catch (error: any) {
     console.error('Error uploading file:', error)
     toast.error('Failed to upload file')
@@ -57,10 +57,15 @@ export const uploadReportFile = async (file: File, reportId: string): Promise<st
 
 export const createReport = async (report: Omit<Report, 'id' | 'created_at' | 'user_id'>, file?: File): Promise<Report | null> => {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+    
     // Insert the report
     const { data, error } = await supabase
       .from('reports')
-      .insert([{ ...report }])
+      .insert([{ ...report, user_id: user.id }])
       .select()
     
     if (error) throw error
@@ -93,7 +98,7 @@ export const createReport = async (report: Omit<Report, 'id' | 'created_at' | 'u
   }
 }
 
-export const downloadReportFile = async (filePath: string): Promise<string | null> => {
+export const downloadReportFile = async (filePath: string, fileName: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
       .storage
@@ -102,11 +107,51 @@ export const downloadReportFile = async (filePath: string): Promise<string | nul
     
     if (error) throw error
     
+    // Create a download link
     const url = URL.createObjectURL(data)
-    return url
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    return true
   } catch (error: any) {
     console.error('Error downloading file:', error)
     toast.error('Failed to download file')
-    return null
+    return false
+  }
+}
+
+export const deleteReport = async (reportId: string, filePath?: string): Promise<boolean> => {
+  try {
+    // Delete the file first if it exists
+    if (filePath) {
+      const { error: fileError } = await supabase
+        .storage
+        .from('medical_files')
+        .remove([filePath])
+      
+      if (fileError) {
+        console.error('Error deleting file:', fileError);
+        // Continue with report deletion even if file deletion fails
+      }
+    }
+    
+    // Delete the report
+    const { error } = await supabase
+      .from('reports')
+      .delete()
+      .eq('id', reportId)
+    
+    if (error) throw error
+    
+    toast.success('Report deleted successfully')
+    return true
+  } catch (error: any) {
+    console.error('Error deleting report:', error)
+    toast.error('Failed to delete report')
+    return false
   }
 }

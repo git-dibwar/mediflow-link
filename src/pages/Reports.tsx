@@ -24,7 +24,7 @@ const Reports = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Fix: Update React Query to use the correct options structure
+  // Use the correct React Query options structure
   const { data: reports = [], isLoading, error } = useQuery({
     queryKey: ['reports', user?.id],
     queryFn: fetchReports,
