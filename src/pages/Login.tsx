@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Login = () => {
-  const { user, isLoading, profile } = useAuth();
+  const { user, isLoading, profile, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -44,7 +43,6 @@ const Login = () => {
   const [userType, setUserType] = useState<UserType>("patient");
   const [authTab, setAuthTab] = useState<"patient" | "professional">("patient");
 
-  // Check if the URL has a signup parameter
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("signup") === "true") {
@@ -52,14 +50,12 @@ const Login = () => {
     }
     if (params.get("type") === "professional") {
       setAuthTab("professional");
-      // Ensure userType is set to a professional type when on professional tab
       if (userType === "patient") {
         setUserType("doctor");
       }
     }
-  }, [location]);
+  }, [location, userType]);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user && !isLoading) {
       if (profile?.user_type === "patient") {
@@ -77,19 +73,15 @@ const Login = () => {
     
     try {
       if (isSignUp) {
-        // Sign up flow
-        const { error } = await useAuth().signUpWithEmail(email, password, name, userType);
+        const { error } = await signUpWithEmail(email, password, name, userType);
         
         if (error) throw error;
         toast.success(`Sign up successful as ${userType}! Please check your email for verification.`);
       } else {
-        // Sign in flow
-        const { error } = await useAuth().signInWithEmail(email, password);
+        const { error } = await signInWithEmail(email, password);
         
         if (error) throw error;
         toast.success("Signed in successfully!");
-        
-        // Navigation will happen automatically in the useEffect
       }
     } catch (error: any) {
       console.error(`Error ${isSignUp ? "signing up" : "signing in"}:`, error);
@@ -103,7 +95,7 @@ const Login = () => {
   const handleGoogleSignIn = async () => {
     try {
       setAuthError(null);
-      await useAuth().signInWithGoogle();
+      await signInWithGoogle();
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       setAuthError(error.message || "Failed to sign in with Google");
@@ -171,7 +163,6 @@ const Login = () => {
             value={authTab} 
             onValueChange={(value) => {
               setAuthTab(value as "patient" | "professional");
-              // Update userType when changing tabs to ensure consistency
               if (value === "patient") {
                 setUserType("patient");
               } else if (value === "professional" && userType === "patient") {
@@ -320,7 +311,6 @@ const Login = () => {
                     onClick={() => {
                       setIsSignUp(!isSignUp);
                       setAuthError(null);
-                      // Update URL without reloading the page
                       const url = new URL(window.location.href);
                       if (isSignUp) {
                         url.searchParams.delete("signup");
@@ -483,7 +473,6 @@ const Login = () => {
                     onClick={() => {
                       setIsSignUp(!isSignUp);
                       setAuthError(null);
-                      // Update URL without reloading the page
                       const url = new URL(window.location.href);
                       if (isSignUp) {
                         url.searchParams.delete("signup");
