@@ -50,6 +50,7 @@ const Reports = () => {
   
   // Function to handle filter type change
   const handleFilterTypeChange = (value: string) => {
+    console.log('Filter type changed to:', value);
     setFilterType(value);
   };
   
