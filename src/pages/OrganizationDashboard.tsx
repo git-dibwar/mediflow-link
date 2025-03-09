@@ -15,24 +15,36 @@ import {
   Users, 
   FileText,
   Calendar,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { Organization, UserType } from "@/types/auth";
 import { getUserOrganization } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const OrganizationDashboard = () => {
-  const { user, profile, isLoading } = useAuth();
+  const { user, profile, isLoading, refreshSession } = useAuth();
   const navigate = useNavigate();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const loadOrganizationData = async () => {
       if (user) {
         setLoadingOrg(true);
-        const orgData = await getUserOrganization(user.id);
-        setOrganization(orgData);
-        setLoadingOrg(false);
+        setLoadError(false);
+        
+        try {
+          const orgData = await getUserOrganization(user.id);
+          setOrganization(orgData);
+        } catch (error) {
+          console.error("Error loading organization:", error);
+          setLoadError(true);
+          toast.error("Failed to load organization data");
+        } finally {
+          setLoadingOrg(false);
+        }
       }
     };
 
@@ -40,6 +52,13 @@ const OrganizationDashboard = () => {
       loadOrganizationData();
     }
   }, [user]);
+
+  // Force refresh if we have user but no profile
+  useEffect(() => {
+    if (user && !profile && !isLoading) {
+      refreshSession();
+    }
+  }, [user, profile, isLoading, refreshSession]);
 
   // Redirect to normal dashboard if user is a patient
   useEffect(() => {
@@ -78,6 +97,7 @@ const OrganizationDashboard = () => {
     }
   };
 
+  // Handle loading state with retry option
   if (isLoading || loadingOrg) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -89,19 +109,46 @@ const OrganizationDashboard = () => {
     );
   }
 
+  // Handle error state with retry option
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center p-6 border rounded-lg shadow-sm max-w-md">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Data Loading Error</h2>
+          <p className="text-muted-foreground text-center mb-4">
+            There was a problem loading your organization data. This could be due to a network issue.
+          </p>
+          <div className="flex gap-4">
+            <Button onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              Go to Patient Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Use default user type if profile is missing
+  const userType = profile?.user_type || "doctor";
+  const userName = profile?.full_name || user?.email?.split('@')[0] || "Professional";
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <main className="flex-1 container py-8">
         <div className="mb-8 space-y-4">
           <div className="flex items-center space-x-4">
-            {getOrganizationIcon(profile?.user_type)}
+            {getOrganizationIcon(userType as UserType)}
             <div>
               <h1 className="text-2xl font-bold text-foreground">
-                {getOrganizationTitle(profile?.user_type)}
+                {getOrganizationTitle(userType as UserType)}
               </h1>
               <p className="text-muted-foreground">
-                {organization?.name || `Welcome, ${profile?.full_name || 'Professional'}`}
+                {organization?.name || `Welcome, ${userName}`}
               </p>
             </div>
           </div>

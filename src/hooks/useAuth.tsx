@@ -34,27 +34,56 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [fetchErrors, setFetchErrors] = useState(0)
 
   const fetchProfile = async (userId: string) => {
     try {
       console.log("Fetching profile for user ID:", userId)
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle() 
+      
+      const fetchWithTimeout = async () => {
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 5000);
+        
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle()
+            .abortSignal(abortController.signal);
+            
+          clearTimeout(timeoutId);
+          return { data, error };
+        } catch (err) {
+          clearTimeout(timeoutId);
+          throw err;
+        }
+      };
+      
+      const { data, error } = await fetchWithTimeout();
 
       if (error) {
         console.error("Error fetching profile:", error)
-        throw error
+        setFetchErrors(prev => prev + 1);
+        
+        if (fetchErrors > 3) {
+          throw error;
+        }
+        
+        if (user) {
+          return;
+        }
+        
+        throw error;
       }
+      
+      setFetchErrors(0);
       
       if (data) {
         console.log("Profile data fetched:", data)
         setProfile(data as Profile)
       } else {
         console.log("No profile found for user", userId)
-        // Create profile if it doesn't exist
         try {
           console.log("Creating new profile for user:", userId)
           const userResult = await supabase.auth.getUser()
@@ -96,24 +125,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log("Refreshing session...")
       setIsLoading(true)
-      const { data, error } = await supabase.auth.getSession()
-      if (error) {
-        console.error("Session error:", error)
-        throw error
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        clearTimeout(timeoutId);
+        
+        if (error) {
+          console.error("Session error:", error)
+          throw error
+        }
+        
+        console.log("Session data:", data)
+        setSession(data.session)
+        setUser(data.session?.user ?? null)
+        
+        if (data.session?.user) {
+          console.log("User found in session, fetching profile")
+          await fetchProfile(data.session.user.id)
+        } else {
+          console.log("No user in session")
+          setProfile(null)
+        }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
       }
       
-      console.log("Session data:", data)
-      setSession(data.session)
-      setUser(data.session?.user ?? null)
-      
-      if (data.session?.user) {
-        console.log("User found in session, fetching profile")
-        await fetchProfile(data.session.user.id)
-      } else {
-        console.log("No user in session")
-      }
     } catch (error) {
       console.error('Error refreshing session:', error)
+      
+      if (fetchErrors > 3 && user) {
+        console.log("Network issues detected, maintaining existing session");
+        setIsLoading(false);
+        return;
+      }
+      
+      setProfile(null);
+      setFetchErrors(prev => prev + 1);
+      throw error;
     } finally {
       setIsLoading(false)
     }
@@ -201,7 +253,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       console.log("Sign up successful, data:", data)
       
-      // For development purposes, we'll automatically sign in the user
       if (data.user) {
         console.log("Auto-signing in after registration")
         await signInWithEmail(email, password)
@@ -217,10 +268,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   useEffect(() => {
-    // Get initial session
     refreshSession()
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event)
