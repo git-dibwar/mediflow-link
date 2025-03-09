@@ -52,6 +52,10 @@ const Login = () => {
     }
     if (params.get("type") === "professional") {
       setAuthTab("professional");
+      // Ensure userType is set to a professional type when on professional tab
+      if (userType === "patient") {
+        setUserType("doctor");
+      }
     }
   }, [location]);
 
@@ -165,7 +169,15 @@ const Login = () => {
         <div className="w-full max-w-md p-8 space-y-6 bg-card rounded-xl shadow-sm border border-border">
           <Tabs 
             value={authTab} 
-            onValueChange={(value) => setAuthTab(value as "patient" | "professional")}
+            onValueChange={(value) => {
+              setAuthTab(value as "patient" | "professional");
+              // Update userType when changing tabs to ensure consistency
+              if (value === "patient") {
+                setUserType("patient");
+              } else if (value === "professional" && userType === "patient") {
+                setUserType("doctor");
+              }
+            }}
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -348,13 +360,13 @@ const Login = () => {
                 {isSignUp && (
                   <>
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
+                      <label htmlFor="prof-name" className="block text-sm font-medium text-foreground mb-1">
                         Full Name
                       </label>
                       <div className="relative">
                         <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                         <Input
-                          id="name"
+                          id="prof-name"
                           type="text"
                           placeholder="Enter your full name"
                           value={name}
@@ -369,42 +381,43 @@ const Login = () => {
                       <label htmlFor="userType" className="block text-sm font-medium text-foreground mb-1">
                         Provider Type
                       </label>
-                      <div className="relative">
-                        <Select value={userType} onValueChange={handleUserTypeSelect}>
-                          <SelectTrigger className="w-full pl-10">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                              {getUserTypeIcon()}
+                      <Select 
+                        value={userType} 
+                        onValueChange={handleUserTypeSelect}
+                      >
+                        <SelectTrigger className="w-full pl-10">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                            {getUserTypeIcon()}
+                          </div>
+                          <SelectValue placeholder="Select provider type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="doctor">
+                            <div className="flex items-center">
+                              <Stethoscope className="mr-2 h-4 w-4 text-blue-500" />
+                              Doctor
                             </div>
-                            <SelectValue placeholder="Select provider type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="doctor" className="flex items-center">
-                              <div className="flex items-center">
-                                <Stethoscope className="mr-2 h-4 w-4 text-blue-500" />
-                                Doctor
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="clinic">
-                              <div className="flex items-center">
-                                <Building2 className="mr-2 h-4 w-4 text-green-500" />
-                                Clinic
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="pharmacy">
-                              <div className="flex items-center">
-                                <Pill className="mr-2 h-4 w-4 text-red-500" />
-                                Pharmacy
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="laboratory">
-                              <div className="flex items-center">
-                                <Microscope className="mr-2 h-4 w-4 text-purple-500" />
-                                Laboratory
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          </SelectItem>
+                          <SelectItem value="clinic">
+                            <div className="flex items-center">
+                              <Building2 className="mr-2 h-4 w-4 text-green-500" />
+                              Clinic
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="pharmacy">
+                            <div className="flex items-center">
+                              <Pill className="mr-2 h-4 w-4 text-red-500" />
+                              Pharmacy
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="laboratory">
+                            <div className="flex items-center">
+                              <Microscope className="mr-2 h-4 w-4 text-purple-500" />
+                              Laboratory
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
