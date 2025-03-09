@@ -1,1 +1,11 @@
+
+# This is the Supabase project ID used for various operations
 project_id = "hucnlvxnwazlqukzsvdb"
+
+# Add proper database schema creation
+[auth]
+enable_signup = true
+enable_email_autoconfirm = true
+
+[api]
+port = 54321

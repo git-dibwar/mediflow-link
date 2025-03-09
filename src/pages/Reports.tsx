@@ -48,8 +48,14 @@ const Reports = () => {
     return () => window.removeEventListener('popstate', handleBackButton);
   }, []);
   
+  // Function to handle filter type change
+  const handleFilterTypeChange = (value: string) => {
+    setFilterType(value);
+  };
+  
   // Function to handle report deletion and refresh the list
   const handleReportDeleted = () => {
+    console.log('Report deleted, refreshing list');
     refetch();
   };
   
@@ -61,11 +67,6 @@ const Reports = () => {
     
     return matchesSearch && matchesType;
   });
-
-  // Handle filter type change
-  const handleFilterTypeChange = (value: string) => {
-    setFilterType(value);
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900 bg-medical-pattern">

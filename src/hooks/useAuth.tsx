@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -38,59 +37,80 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log("Fetching profile for user ID:", userId)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle() // Changed from single() to maybeSingle() to handle profile not found
+        .maybeSingle() 
 
-      if (error) throw error
+      if (error) {
+        console.error("Error fetching profile:", error)
+        throw error
+      }
       
       if (data) {
         console.log("Profile data fetched:", data)
         setProfile(data as Profile)
       } else {
         console.log("No profile found for user", userId)
-        // The profile might be created by the trigger, but it might take time to propagate
-        // Let's try to create it manually as a fallback
-        const userResult = await supabase.auth.getUser()
-        if (userResult.data?.user) {
-          const userData = userResult.data.user
-          const userMeta = userData.user_metadata
-          const userType = userMeta?.user_type || 'patient'
-          const fullName = userMeta?.full_name || 'User'
-          
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .insert([{ 
-              id: userId, 
-              full_name: fullName,
-              user_type: userType
-            }])
-            .select()
-          
-          if (newProfile) {
-            setProfile(newProfile[0] as Profile)
+        // Create profile if it doesn't exist
+        try {
+          console.log("Creating new profile for user:", userId)
+          const userResult = await supabase.auth.getUser()
+          if (userResult.data?.user) {
+            const userData = userResult.data.user
+            const userMeta = userData.user_metadata || {}
+            const userType = userMeta?.user_type || 'patient'
+            const fullName = userMeta?.full_name || 'User'
+            
+            const { data: newProfile, error: insertError } = await supabase
+              .from('profiles')
+              .insert([{ 
+                id: userId, 
+                full_name: fullName,
+                user_type: userType
+              }])
+              .select()
+            
+            if (insertError) {
+              console.error("Error creating profile:", insertError)
+              throw insertError
+            }
+            
+            if (newProfile && newProfile.length > 0) {
+              console.log("New profile created:", newProfile[0])
+              setProfile(newProfile[0] as Profile)
+            }
           }
+        } catch (profileError) {
+          console.error("Error creating profile:", profileError)
         }
       }
     } catch (error) {
-      console.error('Error fetching or creating user profile:', error)
+      console.error('Error in fetchProfile function:', error)
     }
   }
 
   const refreshSession = async () => {
     try {
       console.log("Refreshing session...")
+      setIsLoading(true)
       const { data, error } = await supabase.auth.getSession()
-      if (error) throw error
+      if (error) {
+        console.error("Session error:", error)
+        throw error
+      }
       
       console.log("Session data:", data)
       setSession(data.session)
       setUser(data.session?.user ?? null)
       
       if (data.session?.user) {
+        console.log("User found in session, fetching profile")
         await fetchProfile(data.session.user.id)
+      } else {
+        console.log("No user in session")
       }
     } catch (error) {
       console.error('Error refreshing session:', error)
@@ -138,6 +158,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })
       
       if (error) {
+        console.error("Sign in error:", error)
         throw error
       }
       
@@ -153,6 +174,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return { error: null }
     } catch (error: any) {
       console.error('Error signing in:', error)
+      toast.error(error.message || 'Failed to sign in')
       return { error }
     }
   }
@@ -173,45 +195,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })
       
       if (error) {
+        console.error("Sign up error:", error.message)
         throw error
       }
       
       console.log("Sign up successful, data:", data)
       
       // For development purposes, we'll automatically sign in the user
-      // In production, you would typically ask them to verify their email
       if (data.user) {
-        await supabase.auth.signInWithPassword({
-          email,
-          password
-        })
-        
-        // Create profile manually if the trigger hasn't done it
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .maybeSingle()
-            
-          if (!profileData && !profileError) {
-            await supabase
-              .from('profiles')
-              .insert([{ 
-                id: data.user.id, 
-                full_name: fullName,
-                user_type: userType
-              }])
-          }
-        } catch (e) {
-          console.error("Error checking/creating profile:", e)
-        }
+        console.log("Auto-signing in after registration")
+        await signInWithEmail(email, password)
       }
       
-      toast.success('Account created successfully! Redirecting to dashboard...')
+      toast.success('Account created successfully!')
       return { error: null }
     } catch (error: any) {
       console.error('Error signing up:', error)
+      toast.error(error.message || 'Failed to sign up')
       return { error }
     }
   }

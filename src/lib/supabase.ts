@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
@@ -6,16 +5,34 @@ import { toast } from 'sonner'
 const supabaseUrl = 'https://vfjvxgwugdgfntjekzux.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmanZ4Z3d1Z2RnZm50amVrenV4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEzNjQ2MzEsImV4cCI6MjA1Njk0MDYzMX0.bDgUyiud-Zdw8BFRsxIh4gV80zSykU8gBwq5gh9_JkM'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Initialize the Supabase client with storage session handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storageKey: 'mediflow-auth',
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+})
+
+console.log('Supabase client initialized')
 
 // Auth helpers
 export const getCurrentUser = async () => {
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error) {
-    console.error('Error getting user:', error)
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error) {
+      console.error('Error getting user:', error)
+      return null
+    }
+    
+    console.log('Current user:', user?.id || 'No user found')
+    return user
+  } catch (error) {
+    console.error('Unexpected error getting user:', error)
     return null
   }
-  return user
 }
 
 export const createUserProfile = async (userId: string, profileData: any) => {
@@ -34,16 +51,22 @@ export const createUserProfile = async (userId: string, profileData: any) => {
   }
 }
 
-// Get user profile
+// Get user profile - with improved error handling and logging
 export const getUserProfile = async (userId: string) => {
   try {
+    console.log('Fetching profile for user:', userId)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single()
+      .maybeSingle()
 
-    if (error) throw error
+    if (error) {
+      console.error('Database error getting profile:', error)
+      throw error
+    }
+    
+    console.log('Profile data:', data || 'No profile found')
     return data
   } catch (error: any) {
     console.error('Error getting user profile:', error)
@@ -107,17 +130,8 @@ export const upsertOrganization = async (organization: any) => {
 
 // Database schema helper functions
 export const setupDatabaseSchema = async () => {
-  // This function would normally be run once during app initialization
-  // or as part of a database migration process
-  
-  // Example tables that would be created in Supabase:
-  // 1. profiles - user profile information
-  // 2. reports - medical reports
-  // 3. consultations - doctor consultations
-  // 4. medications - prescribed medications
-  // 5. appointments - scheduled appointments
-  
-  console.log('Database schema is set up in Supabase dashboard')
+  console.log('This function would set up your database schema')
+  console.log('In production, you would use Supabase migrations or the dashboard')
 }
 
 // File storage helpers
