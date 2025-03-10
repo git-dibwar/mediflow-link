@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
@@ -222,5 +221,58 @@ export const deleteFile = async (bucket: string, filePath: string) => {
     console.error('Error deleting file:', error)
     toast.error('Failed to delete file')
     return false
+  }
+}
+
+// Add this function for testing login with a sample user
+export const createSampleUserIfNeeded = async () => {
+  try {
+    console.log('Checking if sample user exists...')
+    const { data: existingUsers, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('full_name', 'Test User')
+      .limit(1)
+    
+    if (checkError) {
+      console.error('Error checking for sample user:', checkError)
+      return
+    }
+    
+    if (existingUsers && existingUsers.length > 0) {
+      console.log('Sample user already exists')
+      return
+    }
+    
+    console.log('Creating sample user for testing...')
+    const testEmail = 'test@example.com'
+    const testPassword = 'password123'
+    
+    const { data, error } = await supabase.auth.signUp({
+      email: testEmail,
+      password: testPassword,
+      options: {
+        data: {
+          full_name: 'Test User',
+          user_type: 'patient'
+        }
+      }
+    })
+    
+    if (error) {
+      console.error('Error creating sample user:', error)
+      return
+    }
+    
+    console.log('Sample user created successfully')
+    console.log('You can login with:')
+    console.log('Email: test@example.com')
+    console.log('Password: password123')
+    
+    // Sign out immediately after creating test user
+    await supabase.auth.signOut()
+    
+  } catch (error) {
+    console.error('Error in createSampleUserIfNeeded:', error)
   }
 }

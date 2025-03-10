@@ -64,8 +64,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Refreshing session...")
       setIsLoading(true)
       
+      // Use AbortController with a shorter timeout (3 seconds)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
       try {
         const { data, error } = await supabase.auth.getSession();
@@ -104,21 +105,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(null);
       setFetchErrors(prev => prev + 1);
     } finally {
+      // Always set loading to false to prevent UI from being stuck
       setIsLoading(false)
-      // Always set auth as initialized after first refresh attempt
+      // Always set auth as initialized after refresh attempt
       setAuthInitialized(true)
     }
   }
 
   useEffect(() => {
-    // Set a timeout to force auth initialization after 2 seconds maximum
+    // Set a timeout to force auth initialization after 1 second maximum (reduced from 2s)
     const initTimeout = setTimeout(() => {
       if (!authInitialized) {
         console.log("Auth initialization timeout - forcing initialization");
         setIsLoading(false);
         setAuthInitialized(true);
       }
-    }, 2000);
+    }, 1000);
+
+    // Also set a minimum loading time to avoid flashing UI states
+    const minLoadingTimeout = setTimeout(() => {
+      if (isLoading && authInitialized) {
+        console.log("Minimum loading time reached, setting isLoading to false");
+        setIsLoading(false);
+      }
+    }, 1500);
 
     refreshSession();
 
@@ -142,6 +152,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       subscription.unsubscribe();
       clearTimeout(initTimeout);
+      clearTimeout(minLoadingTimeout);
     }
   }, [])
 

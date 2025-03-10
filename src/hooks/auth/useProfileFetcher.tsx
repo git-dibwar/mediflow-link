@@ -24,7 +24,7 @@ export const useProfileFetcher = ({
       
       const fetchWithTimeout = async () => {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced from 5s to 3s
         
         try {
           // Using a timeout with abort controller for error handling
@@ -48,7 +48,7 @@ export const useProfileFetcher = ({
         console.error("Error fetching profile:", error)
         setFetchErrors(prev => prev + 1);
         
-        if (fetchErrors > 3) {
+        if (fetchErrors > 2) { // Reduced threshold from 3 to 2
           throw error;
         }
         

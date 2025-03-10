@@ -44,6 +44,7 @@ const Login = () => {
   const [userType, setUserType] = useState<UserType>("patient");
   const [authTab, setAuthTab] = useState<"patient" | "professional">("patient");
   const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
+  const [renderForm, setRenderForm] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -62,19 +63,23 @@ const Login = () => {
     // Mark auth check as complete after a short timeout if still loading
     const timer = setTimeout(() => {
       setInitialAuthCheckComplete(true);
-    }, 1000);
+      // Force render form after 700ms regardless of auth state
+      setRenderForm(true);
+    }, 700);
     
     // Clear timeout if auth state resolves before timeout
     if (!isLoading) {
       clearTimeout(timer);
       setInitialAuthCheckComplete(true);
+      setRenderForm(true);
     }
     
     return () => clearTimeout(timer);
   }, [isLoading]);
 
   useEffect(() => {
-    if (user && !isLoading) {
+    // Only redirect if we have a confirmed authenticated user
+    if (user && !isLoading && profile) {
       if (profile?.user_type === "patient") {
         navigate("/dashboard");
       } else {
@@ -147,8 +152,8 @@ const Login = () => {
     }
   };
 
-  // Show login form after initial check, even if still loading
-  if (isLoading && !initialAuthCheckComplete) {
+  // Show a short loading state, then force show the login form after 700ms
+  if (!renderForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-medical-primary" />
