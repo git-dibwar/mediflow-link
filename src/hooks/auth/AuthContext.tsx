@@ -37,6 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [fetchErrors, setFetchErrors] = useState(0)
+  const [authInitialized, setAuthInitialized] = useState(false)
 
   // Custom hooks for auth functionality
   const { fetchProfile } = useProfileFetcher({ 
@@ -102,14 +103,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       setProfile(null);
       setFetchErrors(prev => prev + 1);
-      throw error;
     } finally {
       setIsLoading(false)
+      // Always set auth as initialized after first refresh attempt
+      setAuthInitialized(true)
     }
   }
 
   useEffect(() => {
-    refreshSession()
+    // Set a timeout to force auth initialization after 2 seconds maximum
+    const initTimeout = setTimeout(() => {
+      if (!authInitialized) {
+        console.log("Auth initialization timeout - forcing initialization");
+        setIsLoading(false);
+        setAuthInitialized(true);
+      }
+    }, 2000);
+
+    refreshSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -124,10 +135,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         
         setIsLoading(false)
+        setAuthInitialized(true)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(initTimeout);
+    }
   }, [])
 
   return (

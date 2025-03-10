@@ -16,6 +16,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const navigate = useNavigate();
   const [loadingAttempts, setLoadingAttempts] = useState(0);
   const [networkError, setNetworkError] = useState(false);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
   // Ensure we have the latest session data with retry and timeout logic
   useEffect(() => {
@@ -25,6 +26,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       try {
         await refreshSession();
         setNetworkError(false);
+        setAuthCheckComplete(true);
       } catch (error) {
         console.error("Session refresh error:", error);
         setLoadingAttempts(prev => prev + 1);
@@ -32,6 +34,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         // After 3 attempts, consider it a network error
         if (loadingAttempts >= 2) {
           setNetworkError(true);
+          setAuthCheckComplete(true);
           toast.error("Network connection issue. Please check your internet connection.");
         } else {
           // Retry after a delay
@@ -40,10 +43,19 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       }
     };
     
+    // Set a timeout to enforce completion of auth check
+    const forceCompleteTimeout = setTimeout(() => {
+      if (!authCheckComplete) {
+        console.log("Force completing auth check after timeout");
+        setAuthCheckComplete(true);
+      }
+    }, 3000);
+    
     attemptRefresh();
     
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(forceCompleteTimeout);
     };
   }, [refreshSession, loadingAttempts]);
 
@@ -73,6 +85,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
               onClick={() => {
                 setNetworkError(false);
                 setLoadingAttempts(0);
+                setAuthCheckComplete(false);
               }}
               variant="default"
             >
@@ -93,7 +106,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // If authentication is still loading, show loading indicator
-  if (isLoading && loadingAttempts < 3) {
+  if (isLoading && !authCheckComplete && loadingAttempts < 3) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-2">
@@ -104,12 +117,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // After 3 loading attempts, force going through auth flow again
-  if (isLoading && loadingAttempts >= 3) {
-    console.log("Multiple loading attempts, redirecting to login");
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
+  // After 3 loading attempts or auth check completion, proceed with routing decisions
   // If user is not authenticated, redirect to login page
   if (!user) {
     console.log("User not authenticated, redirecting to login");
