@@ -59,7 +59,8 @@ export const useProfileFetcher = ({
         throw error;
       }
       
-      setFetchErrors(0);
+      // Fix here: Using a callback to set fetchErrors to 0
+      setFetchErrors(() => 0);
       
       if (data) {
         console.log("Profile data fetched:", data)
