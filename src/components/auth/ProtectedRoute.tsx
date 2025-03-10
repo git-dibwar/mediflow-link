@@ -18,6 +18,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const [networkError, setNetworkError] = useState(false);
   const [authCheckComplete, setAuthCheckComplete] = useState(false);
   const [forceComplete, setForceComplete] = useState(false);
+  const [showLoading, setShowLoading] = useState(true);
 
   // Ensure we have the latest session data with retry and timeout logic
   useEffect(() => {
@@ -51,13 +52,19 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         setAuthCheckComplete(true);
         setForceComplete(true);
       }
-    }, 2000);
+    }, 3000);
+    
+    // Hide loading spinner after 5 seconds regardless of auth status
+    const hideLoadingTimeout = setTimeout(() => {
+      setShowLoading(false);
+    }, 5000);
     
     attemptRefresh();
     
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
       clearTimeout(forceCompleteTimeout);
+      clearTimeout(hideLoadingTimeout);
     };
   }, [refreshSession, loadingAttempts]);
 
@@ -89,6 +96,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
                 setLoadingAttempts(0);
                 setAuthCheckComplete(false);
                 setForceComplete(false);
+                setShowLoading(true);
               }}
               variant="default"
             >
@@ -109,8 +117,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // If authentication is still loading, show loading indicator
-  // But limit this to 2 seconds max with the forceComplete flag
-  if (isLoading && !authCheckComplete && !forceComplete && loadingAttempts < 2) {
+  // But limit this to a few seconds max with the forceComplete flag
+  if ((isLoading || showLoading) && !authCheckComplete && !forceComplete && loadingAttempts < 2) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-2">
@@ -122,7 +130,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   // Force redirect to login if we've completed auth check and there's no user
-  if (authCheckComplete && !user) {
+  if ((authCheckComplete || forceComplete) && !user) {
     console.log("Auth check complete, no user found, redirecting to login");
     // Pass the current location to redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;

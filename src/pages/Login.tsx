@@ -63,9 +63,9 @@ const Login = () => {
     // Mark auth check as complete after a short timeout if still loading
     const timer = setTimeout(() => {
       setInitialAuthCheckComplete(true);
-      // Force render form after 700ms regardless of auth state
+      // Force render form after 600ms regardless of auth state
       setRenderForm(true);
-    }, 700);
+    }, 600);
     
     // Clear timeout if auth state resolves before timeout
     if (!isLoading) {
@@ -152,7 +152,7 @@ const Login = () => {
     }
   };
 
-  // Show a short loading state, then force show the login form after 700ms
+  // Show a very short loading state, then force show the login form
   if (!renderForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

@@ -38,9 +38,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [fetchErrors, setFetchErrors] = useState(0)
   const [authInitialized, setAuthInitialized] = useState(false)
+  const [retryAttempt, setRetryAttempt] = useState(0)
 
   // Custom hooks for auth functionality
-  const { fetchProfile } = useProfileFetcher({ 
+  const { fetchProfile, isLoading: profileLoading } = useProfileFetcher({ 
     setProfile, 
     fetchErrors, 
     setFetchErrors, 
@@ -62,6 +63,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshSession = async () => {
     try {
       console.log("Refreshing session...")
+      setIsLoading(true)
+      
       const { data, error } = await supabase.auth.getSession()
       
       if (error) {
@@ -80,10 +83,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("No user in session")
         setProfile(null)
       }
+      
+      if (retryAttempt > 0) {
+        console.log("Session refreshed successfully after retry:", retryAttempt)
+      }
     } catch (error) {
       console.error('Error refreshing session:', error)
       setProfile(null)
       setFetchErrors(prev => prev + 1)
+      
+      // Retry session refresh if it fails (max 2 retries)
+      if (retryAttempt < 2) {
+        console.log(`Retrying session refresh (attempt ${retryAttempt + 1})...`)
+        setRetryAttempt(prev => prev + 1)
+        setTimeout(refreshSession, 1000) // Retry after 1 second
+      }
     } finally {
       setIsLoading(false)
       setAuthInitialized(true)
@@ -112,14 +126,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     )
 
-    // Force auth initialization after 2 seconds maximum
+    // Force auth initialization after 2.5 seconds maximum
     const initTimeout = setTimeout(() => {
       if (!authInitialized) {
         console.log("Force completing auth initialization")
         setIsLoading(false)
         setAuthInitialized(true)
       }
-    }, 2000)
+    }, 2500)
 
     return () => {
       subscription.unsubscribe()
@@ -132,7 +146,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user, 
       session, 
       profile,
-      isLoading, 
+      isLoading: isLoading || profileLoading, 
       signOut, 
       refreshSession,
       signInWithGoogle,

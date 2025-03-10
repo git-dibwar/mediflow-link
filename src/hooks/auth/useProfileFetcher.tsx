@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types/auth'
 import { User } from '@supabase/supabase-js'
+import { toast } from 'sonner'
 
 type ProfileFetcherProps = {
   setProfile: (profile: Profile | null) => void
@@ -17,9 +18,16 @@ export const useProfileFetcher = ({
   setFetchErrors, 
   user 
 }: ProfileFetcherProps) => {
+  const [isLoading, setIsLoading] = useState(false)
   
   const fetchProfile = async (userId: string) => {
+    if (!userId) {
+      console.error("Cannot fetch profile: userId is empty")
+      return
+    }
+    
     try {
+      setIsLoading(true)
       console.log("Fetching profile for user ID:", userId)
       
       const { data, error } = await supabase
@@ -48,7 +56,7 @@ export const useProfileFetcher = ({
             const userData = userResult.data.user
             const userMeta = userData.user_metadata || {}
             const userType = userMeta?.user_type || 'patient'
-            const fullName = userMeta?.full_name || 'User'
+            const fullName = userMeta?.full_name || userData.email?.split('@')[0] || 'User'
             
             const { data: newProfile, error: insertError } = await supabase
               .from('profiles')
@@ -61,22 +69,28 @@ export const useProfileFetcher = ({
             
             if (insertError) {
               console.error("Error creating profile:", insertError)
+              toast.error("Could not create user profile. Please try again.")
               throw insertError
             }
             
             if (newProfile && newProfile.length > 0) {
               console.log("New profile created:", newProfile[0])
               setProfile(newProfile[0] as Profile)
+              toast.success("Welcome! Your profile has been created.")
             }
           }
         } catch (profileError) {
           console.error("Error creating profile:", profileError)
+          toast.error("Error setting up your profile. Please contact support.")
         }
       }
     } catch (error) {
       console.error('Error in fetchProfile function:', error)
+      toast.error("Something went wrong while retrieving your profile")
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  return { fetchProfile }
+  return { fetchProfile, isLoading }
 }

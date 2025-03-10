@@ -71,6 +71,7 @@ export const useAuthMethods = ({
       setUser(data.user)
       
       if (data.user) {
+        console.log("Fetching profile for user after sign in:", data.user.id)
         await fetchProfile(data.user.id)
       }
       
@@ -115,8 +116,18 @@ export const useAuthMethods = ({
       }
       
       console.log("Sign up successful, data:", data)
-      setSession(data.session)
-      setUser(data.user)
+      
+      // For improved UX, immediately set the session and user if available
+      if (data.session) {
+        setSession(data.session)
+        setUser(data.user)
+        
+        // Some Supabase instances may not require email verification
+        if (data.user) {
+          console.log("Fetching profile for new user:", data.user.id)
+          await fetchProfile(data.user.id)
+        }
+      }
       
       toast.success('Account created successfully! Please check your email for verification.')
       return { error: null }
