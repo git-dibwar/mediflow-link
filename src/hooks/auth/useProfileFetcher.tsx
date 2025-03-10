@@ -22,45 +22,19 @@ export const useProfileFetcher = ({
     try {
       console.log("Fetching profile for user ID:", userId)
       
-      const fetchWithTimeout = async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // Reduced from 5s to 3s
-        
-        try {
-          // Using a timeout with abort controller for error handling
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle();
-            
-          clearTimeout(timeoutId);
-          return { data, error };
-        } catch (err) {
-          clearTimeout(timeoutId);
-          throw err;
-        }
-      };
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
       
-      const { data, error } = await fetchWithTimeout();
-
       if (error) {
         console.error("Error fetching profile:", error)
-        setFetchErrors(prev => prev + 1);
-        
-        if (fetchErrors > 2) { // Reduced threshold from 3 to 2
-          throw error;
-        }
-        
-        if (user) {
-          return;
-        }
-        
-        throw error;
+        setFetchErrors(prev => prev + 1)
+        return
       }
       
-      // Fix here: Using a callback to set fetchErrors to 0
-      setFetchErrors(() => 0);
+      setFetchErrors(() => 0)
       
       if (data) {
         console.log("Profile data fetched:", data)

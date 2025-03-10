@@ -176,20 +176,38 @@ const OrganizationDashboard = () => {
               <CardTitle className="text-lg">Patients</CardTitle>
               <CardDescription>Manage your patients</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Active Patients</p>
+                    <span className="text-2xl font-bold">24</span>
+                  </div>
+                  <Users className="h-8 w-8 text-medical-primary" />
+                </div>
+              </div>
               <Button className="w-full" variant="outline">
                 <Users className="mr-2 h-4 w-4" />
-                View Patients
+                View Patient List
               </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Appointments</CardTitle>
-              <CardDescription>Schedule and manage appointments</CardDescription>
+              <CardTitle className="text-lg">Today's Schedule</CardTitle>
+              <CardDescription>Upcoming appointments</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Appointments Today</p>
+                    <span className="text-2xl font-bold">8</span>
+                  </div>
+                  <Calendar className="h-8 w-8 text-medical-primary" />
+                </div>
+              </div>
               <Button className="w-full" variant="outline">
                 <Calendar className="mr-2 h-4 w-4" />
                 View Calendar
@@ -199,10 +217,19 @@ const OrganizationDashboard = () => {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Records</CardTitle>
-              <CardDescription>Patient records and documents</CardDescription>
+              <CardTitle className="text-lg">Recent Records</CardTitle>
+              <CardDescription>Latest patient records</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">New Records</p>
+                    <span className="text-2xl font-bold">12</span>
+                  </div>
+                  <FileText className="h-8 w-8 text-medical-primary" />
+                </div>
+              </div>
               <Button className="w-full" variant="outline">
                 <FileText className="mr-2 h-4 w-4" />
                 View Records
@@ -215,8 +242,23 @@ const OrganizationDashboard = () => {
               <CardTitle className="text-lg">Settings</CardTitle>
               <CardDescription>Manage your profile and settings</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate("/organization-profile")}>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border p-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">Profile Status</p>
+                    <span className="text-sm text-muted-foreground">
+                      {organization ? "Complete" : "Incomplete"}
+                    </span>
+                  </div>
+                  <Settings className="h-8 w-8 text-medical-primary" />
+                </div>
+              </div>
+              <Button 
+                className="w-full" 
+                variant="outline" 
+                onClick={() => navigate("/organization-profile")}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Update Settings
               </Button>

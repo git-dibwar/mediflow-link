@@ -62,76 +62,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshSession = async () => {
     try {
       console.log("Refreshing session...")
-      setIsLoading(true)
+      const { data, error } = await supabase.auth.getSession()
       
-      // Use AbortController with a shorter timeout (3 seconds)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-      
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        clearTimeout(timeoutId);
-        
-        if (error) {
-          console.error("Session error:", error)
-          throw error
-        }
-        
-        console.log("Session data:", data)
-        setSession(data.session)
-        setUser(data.session?.user ?? null)
-        
-        if (data.session?.user) {
-          console.log("User found in session, fetching profile")
-          await fetchProfile(data.session.user.id)
-        } else {
-          console.log("No user in session")
-          setProfile(null)
-        }
-      } catch (err) {
-        clearTimeout(timeoutId);
-        throw err;
+      if (error) {
+        console.error("Session error:", error)
+        throw error
       }
       
+      console.log("Session data:", data)
+      setSession(data.session)
+      setUser(data.session?.user ?? null)
+      
+      if (data.session?.user) {
+        console.log("User found in session, fetching profile")
+        await fetchProfile(data.session.user.id)
+      } else {
+        console.log("No user in session")
+        setProfile(null)
+      }
     } catch (error) {
       console.error('Error refreshing session:', error)
-      
-      if (fetchErrors > 3 && user) {
-        console.log("Network issues detected, maintaining existing session");
-        setIsLoading(false);
-        return;
-      }
-      
-      setProfile(null);
-      setFetchErrors(prev => prev + 1);
+      setProfile(null)
+      setFetchErrors(prev => prev + 1)
     } finally {
-      // Always set loading to false to prevent UI from being stuck
       setIsLoading(false)
-      // Always set auth as initialized after refresh attempt
       setAuthInitialized(true)
     }
   }
 
   useEffect(() => {
-    // Set a timeout to force auth initialization after 1 second maximum (reduced from 2s)
-    const initTimeout = setTimeout(() => {
-      if (!authInitialized) {
-        console.log("Auth initialization timeout - forcing initialization");
-        setIsLoading(false);
-        setAuthInitialized(true);
-      }
-    }, 1000);
+    // Initial session check
+    refreshSession()
 
-    // Also set a minimum loading time to avoid flashing UI states
-    const minLoadingTimeout = setTimeout(() => {
-      if (isLoading && authInitialized) {
-        console.log("Minimum loading time reached, setting isLoading to false");
-        setIsLoading(false);
-      }
-    }, 1500);
-
-    refreshSession();
-
+    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event)
@@ -149,10 +112,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     )
 
+    // Force auth initialization after 2 seconds maximum
+    const initTimeout = setTimeout(() => {
+      if (!authInitialized) {
+        console.log("Force completing auth initialization")
+        setIsLoading(false)
+        setAuthInitialized(true)
+      }
+    }, 2000)
+
     return () => {
-      subscription.unsubscribe();
-      clearTimeout(initTimeout);
-      clearTimeout(minLoadingTimeout);
+      subscription.unsubscribe()
+      clearTimeout(initTimeout)
     }
   }, [])
 
