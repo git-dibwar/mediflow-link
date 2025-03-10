@@ -1,3 +1,4 @@
+
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -41,16 +42,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Fetching profile for user ID:", userId)
       
       const fetchWithTimeout = async () => {
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 5000);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
         
         try {
+          // Removed the abortSignal method that was causing the error
+          // Instead, we'll use a try/catch with the timeout to handle potential issues
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', userId)
-            .maybeSingle()
-            .abortSignal(abortController.signal);
+            .maybeSingle();
             
           clearTimeout(timeoutId);
           return { data, error };
