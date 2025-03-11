@@ -76,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("Auth hash fragment detected in URL, processing...")
       }
       
+      // Get the current session - Supabase client now automatically processes URL params
       const { data, error } = await supabase.auth.getSession()
       
       if (error) {
