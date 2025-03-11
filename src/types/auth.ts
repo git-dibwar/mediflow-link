@@ -29,3 +29,16 @@ export interface Session {
   expires_at?: number;
   user: AuthUser;
 }
+
+export interface Organization {
+  id?: string;
+  name: string;
+  type?: UserType;
+  address?: string;
+  phone?: string;
+  email?: string;
+  license_number?: string;
+  owner_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
