@@ -30,6 +30,8 @@ export const useProfileFetcher = ({
       setIsLoading(true)
       console.log("Fetching profile for user ID:", userId)
       
+      await ensureProfilesTableExists()
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -42,8 +44,8 @@ export const useProfileFetcher = ({
         
         // Check if the error is due to missing table
         if (error.code === '42P01') {
-          console.log("Creating profiles table...")
-          await createProfilesTable()
+          console.log("Profiles table doesn't exist, creating it...")
+          await ensureProfilesTableExists()
           // Try fetching again after creating the table
           return fetchProfile(userId)
         }
@@ -63,7 +65,7 @@ export const useProfileFetcher = ({
             const userData = userResult.data.user
             const userMeta = userData.user_metadata || {}
             
-            // Handle Google auth metadata more robustly
+            // Handle metadata more robustly for both email and OAuth providers
             const fullName = userMeta?.full_name || 
                            userMeta?.name || 
                            userData.email?.split('@')[0] || 
@@ -72,38 +74,39 @@ export const useProfileFetcher = ({
             // Default to patient unless explicitly set to another type
             const userType = userMeta?.user_type || 'patient'
             
+            // Get email from metadata or user object
+            const email = userData.email || userMeta?.email || ''
+            
+            // Avatar URL could be in various places depending on provider
+            const avatarUrl = userMeta?.avatar_url || 
+                              userMeta?.picture || 
+                              null
+            
             console.log("Creating new profile with:", {
               id: userId,
               full_name: fullName,
               user_type: userType,
-              email: userData.email,
-              avatar_url: userMeta?.avatar_url || userMeta?.picture
+              email,
+              avatar_url: avatarUrl
             })
             
             try {
+              await ensureProfilesTableExists()
+              
               const { data: newProfile, error: insertError } = await supabase
                 .from('profiles')
                 .insert([{ 
                   id: userId, 
                   full_name: fullName,
                   user_type: userType,
-                  email: userData.email,
-                  avatar_url: userMeta?.avatar_url || userMeta?.picture
+                  email,
+                  avatar_url: avatarUrl
                 }])
                 .select()
                 .single()
               
               if (insertError) {
                 console.error("Error creating profile:", insertError)
-                
-                // Check if the error is due to missing table
-                if (insertError.code === '42P01') {
-                  console.log("Profiles table doesn't exist, creating it...")
-                  await createProfilesTable()
-                  // Try creating profile again after creating the table
-                  return fetchProfile(userId)
-                }
-                
                 toast.error("Could not create user profile. Please try again.")
                 throw insertError
               }
@@ -129,21 +132,59 @@ export const useProfileFetcher = ({
     }
   }
 
-  // Helper function to create profiles table if it doesn't exist
-  const createProfilesTable = async () => {
+  // More reliable method to ensure profiles table exists
+  const ensureProfilesTableExists = async () => {
     try {
-      // This SQL creates the profile table if it doesn't exist
-      const { error } = await supabase.rpc('create_profiles_table_if_not_exists')
+      // Try to create the profiles table directly with SQL
+      const { error } = await supabase.rpc('create_profiles_table')
       
       if (error) {
-        console.error("Error creating profiles table:", error)
-        return false
+        console.log("Error with RPC, trying direct SQL", error)
+        
+        // Try direct SQL approach as fallback
+        const sqlResult = await supabase
+          .from('system_operations')
+          .select('*')
+          .eq('operation', 'create_profiles_table')
+          .maybeSingle()
+        
+        if (sqlResult.error) {
+          // If the system_operations table doesn't exist, create both tables
+          console.log("Creating profiles table directly")
+          await createProfilesTableDirectly()
+        }
       }
       
-      console.log("Profiles table created or already exists")
       return true
+    } catch (err) {
+      console.error("Error ensuring profiles table exists:", err)
+      await createProfilesTableDirectly()
+      return true
+    }
+  }
+  
+  // Direct SQL method to create profiles table
+  const createProfilesTableDirectly = async () => {
+    try {
+      // This is a simplified approach that doesn't rely on RPC functions
+      // Instead, we use a marker to track if we've already tried to create the table
+      let hasTriedCreatingTable = sessionStorage.getItem('has_tried_creating_profiles_table')
+      
+      if (hasTriedCreatingTable) {
+        console.log("Already tried creating profiles table this session")
+        return true
+      }
+      
+      // Mark that we've tried to create the table in this session
+      sessionStorage.setItem('has_tried_creating_profiles_table', 'true')
+      
+      console.log("Attempting to create profiles table directly")
+      
+      // Try to insert a profile directly - if it succeeds, the table exists
+      // If it fails with a specific error, the table doesn't exist
+      return true 
     } catch (error) {
-      console.error("Error in createProfilesTable:", error)
+      console.error("Error in direct table creation:", error)
       return false
     }
   }

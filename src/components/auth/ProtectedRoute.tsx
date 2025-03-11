@@ -30,14 +30,29 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       console.log("Auth fragment detected in ProtectedRoute, refreshing session");
       refreshSession();
     }
-  }, [location.hash, refreshSession]);
+  }, [location.hash]);
 
-  // Ensure we have the latest session data with retry and timeout logic
+  // Handle authentication state and force completion after timeout
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     
     const attemptRefresh = async () => {
       try {
+        // Clear any hash parameters to prevent issues
+        if (window.location.hash) {
+          // Store the current hash in case it contains auth tokens
+          const currentHash = window.location.hash;
+          
+          // Only replace if it doesn't contain auth tokens
+          if (!currentHash.includes('access_token')) {
+            window.history.replaceState(
+              null, 
+              document.title, 
+              window.location.pathname + window.location.search
+            );
+          }
+        }
+        
         await refreshSession();
         setNetworkError(false);
         setAuthCheckComplete(true);
@@ -45,14 +60,14 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         console.error("Session refresh error:", error);
         setLoadingAttempts(prev => prev + 1);
         
-        // After 2 attempts, consider it a network error
-        if (loadingAttempts >= 1) {
+        if (loadingAttempts >= 2) {
           setNetworkError(true);
           setAuthCheckComplete(true);
-          toast.error("Network connection issue. Please check your internet connection.");
+          toast.error("Unable to connect. Please check your connection and try again.");
         } else {
-          // Retry after a delay
-          timeoutId = setTimeout(attemptRefresh, 1500);
+          // Retry with exponential backoff
+          const delay = Math.min(1000 * (2 ** loadingAttempts), 5000);
+          timeoutId = setTimeout(attemptRefresh, delay);
         }
       }
     };
@@ -63,13 +78,18 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         console.log("Force completing auth check after timeout");
         setAuthCheckComplete(true);
         setForceComplete(true);
+        
+        // If after forced completion there's still no user, redirect to login
+        if (!user) {
+          navigate('/login', { replace: true, state: { from: location } });
+        }
       }
     }, 3000);
     
-    // Hide loading spinner after 5 seconds regardless of auth status
+    // Hide loading spinner after 3 seconds regardless of auth status
     const hideLoadingTimeout = setTimeout(() => {
       setShowLoading(false);
-    }, 5000);
+    }, 3000);
     
     attemptRefresh();
     
@@ -79,17 +99,6 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       clearTimeout(hideLoadingTimeout);
     };
   }, [refreshSession, loadingAttempts]);
-
-  // Fix for back button navigation - register a popstate listener
-  useEffect(() => {
-    const handlePopState = () => {
-      // This helps React Router handle browser back/forward navigation correctly
-      console.log('Back/forward navigation detected at:', location.pathname);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [location]);
 
   // If there's a network error, show a retry button
   if (networkError) {
@@ -109,6 +118,11 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
                 setAuthCheckComplete(false);
                 setForceComplete(false);
                 setShowLoading(true);
+                
+                // Clear any cached auth data that might be causing issues
+                localStorage.removeItem('supabase.auth.token');
+                localStorage.removeItem('mediflow-auth');
+                sessionStorage.clear();
               }}
               variant="default"
             >
@@ -116,7 +130,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
             </Button>
             <Button 
               onClick={() => {
-                signOut().then(() => navigate('/login'));
+                signOut().then(() => navigate('/login', { replace: true }));
               }}
               variant="outline"
             >
@@ -128,9 +142,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If authentication is still loading, show loading indicator
-  // But limit this to a few seconds max with the forceComplete flag
-  if ((isLoading || showLoading) && !authCheckComplete && !forceComplete && loadingAttempts < 2) {
+  // If still loading and not forced complete, show loading indicator
+  if ((isLoading || showLoading) && !authCheckComplete && !forceComplete) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <div className="flex flex-col items-center gap-2">
@@ -144,7 +157,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   // Handle OAuth redirects from URL hash
   if (window.location.hash && window.location.hash.includes('access_token')) {
     console.log("Auth token found in URL, redirecting to dashboard");
-    // Let the auth provider handle the hash, but clean up the URL
+    // Clean up the URL
     window.history.replaceState(null, document.title, window.location.pathname);
     return <Navigate to="/dashboard" replace />;
   }
@@ -152,7 +165,6 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   // Force redirect to login if we've completed auth check and there's no user
   if ((authCheckComplete || forceComplete) && !user) {
     console.log("Auth check complete, no user found, redirecting to login");
-    // Pass the current location to redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -163,17 +175,17 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to={destination} replace />;
   }
 
-  // If we've gotten this far and we're not on the login page, but don't have a user,
-  // redirect to login (happens when forceComplete is true but there's no user)
-  if (!user && location.pathname !== '/login') {
-    console.log("No user found, redirecting to login");
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  // If we're at the root path with authenticated user, redirect to dashboard
+  if (user && location.pathname === '/') {
+    const destination = profile?.user_type === 'patient' ? '/dashboard' : '/organization-dashboard';
+    console.log(`User at root path, redirecting to ${destination}`);
+    return <Navigate to={destination} replace />;
   }
 
-  // If profile failed to load but user is authenticated, assume patient type as fallback
+  // For safety, assume patient if profile is missing but user is authenticated
   if (user && !profile) {
     console.log("Profile missing, using default access");
-    // Redirect professional routes to patient dashboard for safety
+    
     if (
       location.pathname === '/organization-dashboard' ||
       location.pathname === '/organization-profile'
@@ -183,9 +195,9 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <>{children}</>;
   }
 
-  // Route-based authorization checks
+  // Role-based redirects
   if (user && profile) {
-    // Redirect professional users to their dashboard if accessing patient routes
+    // Redirect professional users away from patient routes
     if (profile.user_type !== 'patient' && 
         (
           location.pathname === '/dashboard' ||
@@ -201,7 +213,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       return <Navigate to="/organization-dashboard" replace />;
     }
 
-    // Redirect patients to their dashboard if accessing professional routes
+    // Redirect patients away from professional routes
     if (profile.user_type === 'patient' && 
         (
           location.pathname === '/organization-dashboard' ||
@@ -213,14 +225,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     }
   }
 
-  // Special case for root path with authenticated user
-  if (user && location.pathname === '/') {
-    const destination = profile?.user_type === 'patient' ? '/dashboard' : '/organization-dashboard';
-    console.log(`User at root path, redirecting to ${destination}`);
-    return <Navigate to={destination} replace />;
-  }
-
-  // If user is authenticated and has correct role for the route, render the children
+  // If all checks pass, render the protected content
   return <>{children}</>;
 };
 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,14 +31,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Login = () => {
-  const { user, isLoading, profile, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
+  const { user, isLoading, profile, signInWithEmail, signUpWithEmail, signInWithGoogle, isAuthLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [userType, setUserType] = useState<UserType>("patient");
   const [authTab, setAuthTab] = useState<"patient" | "professional">("patient");
@@ -60,14 +58,11 @@ const Login = () => {
   }, [location, userType]);
 
   useEffect(() => {
-    // Mark auth check as complete after a short timeout if still loading
     const timer = setTimeout(() => {
       setInitialAuthCheckComplete(true);
-      // Force render form after 600ms regardless of auth state
       setRenderForm(true);
     }, 600);
     
-    // Clear timeout if auth state resolves before timeout
     if (!isLoading) {
       clearTimeout(timer);
       setInitialAuthCheckComplete(true);
@@ -78,39 +73,53 @@ const Login = () => {
   }, [isLoading]);
 
   useEffect(() => {
-    // Only redirect if we have a confirmed authenticated user
     if (user && !isLoading && profile) {
-      if (profile?.user_type === "patient") {
-        navigate("/dashboard");
-      } else {
-        navigate("/organization-dashboard");
-      }
+      console.log("User authenticated, navigating to dashboard. User type:", profile.user_type);
+      
+      setTimeout(() => {
+        if (profile?.user_type === "patient") {
+          navigate("/dashboard", { replace: true });
+        } else {
+          navigate("/organization-dashboard", { replace: true });
+        }
+      }, 200);
     }
   }, [user, isLoading, profile, navigate]);
 
+  useEffect(() => {
+    if (authError) {
+      const timer = setTimeout(() => {
+        setAuthError(null);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [authError]);
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthLoading(true);
     setAuthError(null);
     
     try {
       if (isSignUp) {
-        const { error } = await signUpWithEmail(email, password, name, userType);
+        const result = await signUpWithEmail(email, password, name, userType);
         
-        if (error) throw error;
-        toast.success(`Sign up successful as ${userType}! Please check your email for verification.`);
+        if (result?.error) throw result.error;
+        if (result?.success) {
+          toast.success(`Sign up successful as ${userType}! Please check your email for verification.`);
+        }
       } else {
-        const { error } = await signInWithEmail(email, password);
+        const result = await signInWithEmail(email, password);
         
-        if (error) throw error;
-        toast.success("Signed in successfully!");
+        if (result?.error) throw result.error;
+        if (result?.success) {
+          toast.success("Signed in successfully!");
+        }
       }
     } catch (error: any) {
       console.error(`Error ${isSignUp ? "signing up" : "signing in"}:`, error);
       setAuthError(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
       toast.error(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
-    } finally {
-      setAuthLoading(false);
     }
   };
 
@@ -152,7 +161,13 @@ const Login = () => {
     }
   };
 
-  // Show a very short loading state, then force show the login form
+  const resetAuth = () => {
+    localStorage.removeItem('mediflow-auth');
+    localStorage.removeItem('supabase.auth.token');
+    sessionStorage.clear();
+    toast.info("Auth storage cleared. Try logging in again.");
+  };
+
   if (!renderForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -176,7 +191,10 @@ const Login = () => {
               <span className="text-xl font-semibold bg-gradient-to-r from-medical-primary to-blue-700 bg-clip-text text-transparent">MediFlow</span>
             </Link>
           </div>
-          <ModeToggle />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={resetAuth}>Reset Auth</Button>
+            <ModeToggle />
+          </div>
         </div>
       </header>
 
@@ -292,9 +310,9 @@ const Login = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={authLoading}
+                  disabled={isAuthLoading}
                 >
-                  {authLoading ? (
+                  {isAuthLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading...
@@ -316,6 +334,7 @@ const Login = () => {
                   className="w-full flex items-center justify-center gap-2"
                   variant="outline"
                   type="button"
+                  disabled={isAuthLoading}
                 >
                   <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
                     <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
@@ -480,9 +499,9 @@ const Login = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={authLoading}
+                  disabled={isAuthLoading}
                 >
-                  {authLoading ? (
+                  {isAuthLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Loading...

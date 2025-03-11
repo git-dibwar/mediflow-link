@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { UserType, Profile } from '@/types/auth'
 import { User, Session } from '@supabase/supabase-js'
+import { useState } from 'react'
 
 type AuthMethodsProps = {
   setUser: (user: User | null) => void
@@ -17,6 +18,7 @@ export const useAuthMethods = ({
   setProfile, 
   fetchProfile 
 }: AuthMethodsProps) => {
+  const [isAuthLoading, setIsAuthLoading] = useState(false)
   
   const signOut = async () => {
     try {
@@ -26,6 +28,11 @@ export const useAuthMethods = ({
       setUser(null)
       setSession(null)
       setProfile(null)
+      
+      // Clear any local storage/cache that might be causing persistence issues
+      localStorage.removeItem('supabase.auth.token')
+      localStorage.removeItem('mediflow-auth')
+      
       toast.success('Signed out successfully')
     } catch (error: any) {
       console.error('Error signing out:', error)
@@ -40,22 +47,34 @@ export const useAuthMethods = ({
 
   const signInWithGoogle = async () => {
     try {
+      setIsAuthLoading(true)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       })
       if (error) throw error
     } catch (error: any) {
       console.error('Error signing in with Google:', error)
       toast.error(error.message || 'Failed to sign in with Google')
+    } finally {
+      setIsAuthLoading(false)
     }
   }
 
   const signInWithEmail = async (email: string, password: string) => {
     try {
+      setIsAuthLoading(true)
       console.log("Signing in with email:", email)
+      
+      // First clear any potentially problematic auth state
+      await supabase.auth.signOut()
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -67,6 +86,11 @@ export const useAuthMethods = ({
       }
       
       console.log("Sign in successful, data:", data)
+      
+      if (!data.session) {
+        throw new Error("No session returned after login")
+      }
+      
       setSession(data.session)
       setUser(data.user)
       
@@ -76,7 +100,7 @@ export const useAuthMethods = ({
       }
       
       toast.success('Signed in successfully')
-      return { error: null }
+      return { error: null, success: true }
     } catch (error: any) {
       console.error('Error signing in:', error)
       
@@ -92,13 +116,20 @@ export const useAuthMethods = ({
       }
       
       toast.error(errorMessage)
-      return { error }
+      return { error, success: false }
+    } finally {
+      setIsAuthLoading(false)
     }
   }
 
   const signUpWithEmail = async (email: string, password: string, fullName: string, userType: UserType) => {
     try {
+      setIsAuthLoading(true)
       console.log("Signing up with email:", email, "userType:", userType)
+      
+      // First clear any potentially problematic auth state
+      await supabase.auth.signOut()
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -130,7 +161,7 @@ export const useAuthMethods = ({
       }
       
       toast.success('Account created successfully! Please check your email for verification.')
-      return { error: null }
+      return { error: null, success: true }
     } catch (error: any) {
       console.error('Error signing up:', error)
       
@@ -146,7 +177,9 @@ export const useAuthMethods = ({
       }
       
       toast.error(errorMessage)
-      return { error }
+      return { error, success: false }
+    } finally {
+      setIsAuthLoading(false)
     }
   }
 
@@ -154,6 +187,7 @@ export const useAuthMethods = ({
     signOut,
     signInWithGoogle,
     signInWithEmail,
-    signUpWithEmail
+    signUpWithEmail,
+    isAuthLoading
   }
 }

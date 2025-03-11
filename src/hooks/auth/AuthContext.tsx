@@ -16,8 +16,9 @@ type AuthContextType = {
   signOut: () => Promise<void>
   refreshSession: () => Promise<void>
   signInWithGoogle: () => Promise<void>
-  signInWithEmail: (email: string, password: string) => Promise<{ error: any } | undefined>
-  signUpWithEmail: (email: string, password: string, fullName: string, userType: UserType) => Promise<{ error: any } | undefined>
+  signInWithEmail: (email: string, password: string) => Promise<{ error: any, success?: boolean } | undefined>
+  signUpWithEmail: (email: string, password: string, fullName: string, userType: UserType) => Promise<{ error: any, success?: boolean } | undefined>
+  isAuthLoading: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   isLoading: true,
+  isAuthLoading: false,
   signOut: async () => {},
   refreshSession: async () => {},
   signInWithGoogle: async () => {},
@@ -54,7 +56,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signOut, 
     signInWithGoogle, 
     signInWithEmail, 
-    signUpWithEmail 
+    signUpWithEmail,
+    isAuthLoading 
   } = useAuthMethods({ 
     setUser, 
     setSession, 
@@ -85,12 +88,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       console.log("Session data:", data)
-      setSession(data.session)
-      setUser(data.session?.user ?? null)
       
-      if (data.session?.user) {
-        console.log("User found in session, fetching profile")
+      if (data.session) {
+        setSession(data.session)
+        setUser(data.session?.user ?? null)
+        
+        console.log("User found in session, fetching profile", data.session.user.id)
         await fetchProfile(data.session.user.id)
+        
         // Clear the hash after successfully processing
         if (hasAuthFragment && !redirectReady) {
           setRedirectReady(true)
@@ -120,7 +125,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Effect to handle URL hash for redirects
+  // Detect and handle URL fragments 
+  useEffect(() => {
+    const handleHashFragment = async () => {
+      if (window.location.hash && window.location.hash.includes('access_token')) {
+        console.log("Access token found in URL, processing...")
+        
+        try {
+          // Let Supabase handle the URL fragment
+          const { data, error } = await supabase.auth.getSessionFromUrl();
+          
+          if (error) {
+            console.error("Error processing URL auth:", error);
+            toast.error("Failed to complete authentication");
+            return;
+          }
+          
+          if (data?.session) {
+            console.log("Session extracted from URL:", data.session.user.id);
+            setSession(data.session);
+            setUser(data.session.user);
+            await fetchProfile(data.session.user.id);
+            
+            // Replace URL without the hash to clean up
+            window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            toast.success("Successfully signed in!");
+          }
+        } catch (error) {
+          console.error("Error processing auth URL:", error);
+          toast.error("Authentication failed. Please try again.");
+        }
+      }
+    };
+    
+    handleHashFragment();
+  }, []);
+
+  // Redirect after successful auth
   useEffect(() => {
     if (redirectReady && user && profile) {
       console.log("Ready to redirect after auth, user type:", profile.user_type)
@@ -135,41 +176,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [redirectReady, user, profile])
 
   useEffect(() => {
+    // This will force clearing any stale sessions that might be causing issues
+    const clearStaleData = async () => {
+      // Check if there's any URL auth params that need processing
+      const hasAuthParams = window.location.hash && 
+        (window.location.hash.includes('access_token') || 
+         window.location.hash.includes('error_description'));
+      
+      if (!hasAuthParams) {
+        // Only try to clear auth if not actively authenticating
+        try {
+          // This checks if we have a proper session, if not, it will clean up stale data
+          const { data } = await supabase.auth.getSession();
+          if (!data.session) {
+            console.log("No valid session, clearing any stale auth data");
+            // Force clean local storage
+            localStorage.removeItem('supabase.auth.token');
+            localStorage.removeItem('mediflow-auth');
+          }
+        } catch (e) {
+          console.error("Error checking session:", e);
+        }
+      }
+    };
+    
+    clearStaleData();
+    
     // Initial session check
-    refreshSession()
+    refreshSession();
 
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id)
-        setSession(session)
-        setUser(session?.user ?? null)
+        console.log('Auth state changed:', event, session?.user?.id);
         
-        if (session?.user) {
-          await fetchProfile(session.user.id)
-        } else {
-          setProfile(null)
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          setIsLoading(true);
+          setSession(session);
+          setUser(session?.user ?? null);
+          
+          if (session?.user) {
+            await fetchProfile(session.user.id);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
         }
         
-        setIsLoading(false)
-        setAuthInitialized(true)
+        setIsLoading(false);
+        setAuthInitialized(true);
       }
-    )
+    );
 
     // Force auth initialization after 2.5 seconds maximum
     const initTimeout = setTimeout(() => {
       if (!authInitialized) {
-        console.log("Force completing auth initialization")
-        setIsLoading(false)
-        setAuthInitialized(true)
+        console.log("Force completing auth initialization");
+        setIsLoading(false);
+        setAuthInitialized(true);
       }
-    }, 2500)
+    }, 2500);
 
     return () => {
-      subscription.unsubscribe()
-      clearTimeout(initTimeout)
-    }
-  }, [])
+      subscription.unsubscribe();
+      clearTimeout(initTimeout);
+    };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ 
@@ -181,11 +254,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       refreshSession,
       signInWithGoogle,
       signInWithEmail,
-      signUpWithEmail
+      signUpWithEmail,
+      isAuthLoading
     }}>
       {children}
     </AuthContext.Provider>
-  )
-}
+  );
+};
 
-export const useAuth = () => useContext(AuthContext)
+export const useAuth = () => useContext(AuthContext);
