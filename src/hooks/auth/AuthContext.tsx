@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
@@ -44,7 +43,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [retryAttempt, setRetryAttempt] = useState(0)
   const [redirectReady, setRedirectReady] = useState(false)
 
-  // Custom hooks for auth functionality
   const { fetchProfile, isLoading: profileLoading } = useProfileFetcher({ 
     setProfile, 
     fetchErrors, 
@@ -70,14 +68,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Refreshing session...")
       setIsLoading(true)
       
-      // Check for auth fragment in URL
       const hasAuthFragment = window.location.hash && 
                            (window.location.hash.includes('access_token') || 
                             window.location.hash.includes('error_description'))
       
       if (hasAuthFragment) {
         console.log("Auth hash fragment detected in URL, processing...")
-        // The Supabase client will handle the hash automatically with detectSessionInUrl
       }
       
       const { data, error } = await supabase.auth.getSession()
@@ -96,7 +92,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("User found in session, fetching profile", data.session.user.id)
         await fetchProfile(data.session.user.id)
         
-        // Clear the hash after successfully processing
         if (hasAuthFragment && !redirectReady) {
           setRedirectReady(true)
         }
@@ -113,11 +108,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setProfile(null)
       setFetchErrors(prev => prev + 1)
       
-      // Retry session refresh if it fails (max 2 retries)
       if (retryAttempt < 2) {
         console.log(`Retrying session refresh (attempt ${retryAttempt + 1})...`)
         setRetryAttempt(prev => prev + 1)
-        setTimeout(refreshSession, 1000) // Retry after 1 second
+        setTimeout(refreshSession, 1000)
       }
     } finally {
       setIsLoading(false)
@@ -125,15 +119,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
-  // Detect and handle URL fragments 
   useEffect(() => {
     const handleHashFragment = async () => {
       if (window.location.hash && window.location.hash.includes('access_token')) {
         console.log("Access token found in URL, processing...")
         
         try {
-          // Let Supabase handle the URL fragment
-          const { data, error } = await supabase.auth.getSessionFromUrl();
+          const { data, error } = await supabase.auth.getSession();
           
           if (error) {
             console.error("Error processing URL auth:", error);
@@ -147,7 +139,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(data.session.user);
             await fetchProfile(data.session.user.id);
             
-            // Replace URL without the hash to clean up
             window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
             toast.success("Successfully signed in!");
           }
@@ -161,12 +152,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     handleHashFragment();
   }, []);
 
-  // Redirect after successful auth
   useEffect(() => {
     if (redirectReady && user && profile) {
       console.log("Ready to redirect after auth, user type:", profile.user_type)
       
-      // Clean up the URL by removing the hash
       if (window.location.hash) {
         window.history.replaceState(null, document.title, window.location.pathname + window.location.search)
       }
@@ -176,21 +165,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [redirectReady, user, profile])
 
   useEffect(() => {
-    // This will force clearing any stale sessions that might be causing issues
     const clearStaleData = async () => {
-      // Check if there's any URL auth params that need processing
       const hasAuthParams = window.location.hash && 
         (window.location.hash.includes('access_token') || 
          window.location.hash.includes('error_description'));
       
       if (!hasAuthParams) {
-        // Only try to clear auth if not actively authenticating
         try {
-          // This checks if we have a proper session, if not, it will clean up stale data
           const { data } = await supabase.auth.getSession();
           if (!data.session) {
             console.log("No valid session, clearing any stale auth data");
-            // Force clean local storage
             localStorage.removeItem('supabase.auth.token');
             localStorage.removeItem('mediflow-auth');
           }
@@ -202,10 +186,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     clearStaleData();
     
-    // Initial session check
     refreshSession();
 
-    // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
@@ -229,7 +211,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Force auth initialization after 2.5 seconds maximum
     const initTimeout = setTimeout(() => {
       if (!authInitialized) {
         console.log("Force completing auth initialization");
