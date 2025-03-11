@@ -52,15 +52,56 @@ export const getCurrentUser = async () => {
   }
 }
 
+// Create profiles table RPC function to handle missing table
+export const setupProfilesTable = async () => {
+  try {
+    const { data, error } = await supabase.rpc('create_profiles_table_if_not_exists')
+    
+    if (error) {
+      // If RPC doesn't exist, create it
+      if (error.message.includes('does not exist')) {
+        const createRpcResult = await supabase.rpc('create_profiles_rpc')
+        if (createRpcResult.error) {
+          console.error('Error creating profiles RPC:', createRpcResult.error)
+          
+          // Last resort: try direct SQL
+          const createTableResult = await supabase.from('_setup').select('*').limit(1)
+          return createTableResult.error ? false : true
+        }
+        return true
+      }
+      
+      console.error('Error setting up profiles table:', error)
+      return false
+    }
+    
+    return true
+  } catch (error) {
+    console.error('Error in setupProfilesTable:', error)
+    return false
+  }
+}
+
 export const createUserProfile = async (userId: string, profileData: any) => {
   try {
+    await setupProfilesTable()
+    
     const { data, error } = await supabase
       .from('profiles')
       .insert([{ id: userId, ...profileData }])
       .select()
 
-    if (error) throw error
-    return data[0]
+    if (error) {
+      // If table doesn't exist
+      if (error.code === '42P01') {
+        await setupProfilesTable()
+        // Try again after setup
+        return createUserProfile(userId, profileData)
+      }
+      throw error
+    }
+    
+    return data?.[0] || null
   } catch (error: any) {
     console.error('Error creating user profile:', error)
     toast.error('Failed to create user profile')
@@ -72,6 +113,8 @@ export const createUserProfile = async (userId: string, profileData: any) => {
 export const getUserProfile = async (userId: string) => {
   try {
     console.log('Fetching profile for user:', userId)
+    await setupProfilesTable()
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -79,6 +122,13 @@ export const getUserProfile = async (userId: string) => {
       .maybeSingle()
 
     if (error) {
+      // If table doesn't exist
+      if (error.code === '42P01') {
+        await setupProfilesTable()
+        // Try again after setup
+        return getUserProfile(userId)
+      }
+      
       console.error('Database error getting profile:', error)
       throw error
     }
@@ -94,15 +144,27 @@ export const getUserProfile = async (userId: string) => {
 // Update user profile
 export const updateUserProfile = async (userId: string, updates: any) => {
   try {
+    await setupProfilesTable()
+    
     const { data, error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', userId)
       .select()
 
-    if (error) throw error
+    if (error) {
+      // If table doesn't exist
+      if (error.code === '42P01') {
+        await setupProfilesTable()
+        // Try again after setup
+        return updateUserProfile(userId, updates)
+      }
+      
+      throw error
+    }
+    
     toast.success('Profile updated successfully')
-    return data[0]
+    return data?.[0] || null
   } catch (error: any) {
     console.error('Error updating user profile:', error)
     toast.error('Failed to update profile')
@@ -245,6 +307,8 @@ export const deleteFile = async (bucket: string, filePath: string) => {
 export const createSampleUserIfNeeded = async () => {
   try {
     console.log('Checking if sample user exists...')
+    await setupProfilesTable()
+    
     const { data: existingUsers, error: checkError } = await supabase
       .from('profiles')
       .select('id')
@@ -252,8 +316,13 @@ export const createSampleUserIfNeeded = async () => {
       .limit(1)
     
     if (checkError) {
-      console.error('Error checking for sample user:', checkError)
-      return
+      // If table doesn't exist, set it up
+      if (checkError.code === '42P01') {
+        await setupProfilesTable()
+      } else {
+        console.error('Error checking for sample user:', checkError)
+        return
+      }
     }
     
     if (existingUsers && existingUsers.length > 0) {

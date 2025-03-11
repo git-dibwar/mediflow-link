@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Profile, UserType } from '@/types/auth'
 import { useAuthMethods } from './useAuthMethods'
 import { useProfileFetcher } from './useProfileFetcher'
+import { useNavigate } from 'react-router-dom'
 
 type AuthContextType = {
   user: User | null
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [fetchErrors, setFetchErrors] = useState(0)
   const [authInitialized, setAuthInitialized] = useState(false)
   const [retryAttempt, setRetryAttempt] = useState(0)
+  const [redirectReady, setRedirectReady] = useState(false)
 
   // Custom hooks for auth functionality
   const { fetchProfile, isLoading: profileLoading } = useProfileFetcher({ 
@@ -65,6 +67,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.log("Refreshing session...")
       setIsLoading(true)
       
+      // Check for auth fragment in URL
+      const hasAuthFragment = window.location.hash && 
+                           (window.location.hash.includes('access_token') || 
+                            window.location.hash.includes('error_description'))
+      
+      if (hasAuthFragment) {
+        console.log("Auth hash fragment detected in URL, processing...")
+        // The Supabase client will handle the hash automatically with detectSessionInUrl
+      }
+      
       const { data, error } = await supabase.auth.getSession()
       
       if (error) {
@@ -79,6 +91,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (data.session?.user) {
         console.log("User found in session, fetching profile")
         await fetchProfile(data.session.user.id)
+        // Clear the hash after successfully processing
+        if (hasAuthFragment && !redirectReady) {
+          setRedirectReady(true)
+        }
       } else {
         console.log("No user in session")
         setProfile(null)
@@ -104,6 +120,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // Effect to handle URL hash for redirects
+  useEffect(() => {
+    if (redirectReady && user && profile) {
+      console.log("Ready to redirect after auth, user type:", profile.user_type)
+      
+      // Clean up the URL by removing the hash
+      if (window.location.hash) {
+        window.history.replaceState(null, document.title, window.location.pathname + window.location.search)
+      }
+      
+      setRedirectReady(false)
+    }
+  }, [redirectReady, user, profile])
+
   useEffect(() => {
     // Initial session check
     refreshSession()
@@ -111,7 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Subscribe to auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event)
+        console.log('Auth state changed:', event, session?.user?.id)
         setSession(session)
         setUser(session?.user ?? null)
         

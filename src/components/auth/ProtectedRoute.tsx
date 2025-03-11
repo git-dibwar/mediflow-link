@@ -20,6 +20,18 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const [forceComplete, setForceComplete] = useState(false);
   const [showLoading, setShowLoading] = useState(true);
 
+  // Handle URL hash for OAuth redirects
+  useEffect(() => {
+    const hasAuthFragment = window.location.hash && 
+                         (window.location.hash.includes('access_token') || 
+                          window.location.hash.includes('error_description'));
+                          
+    if (hasAuthFragment) {
+      console.log("Auth fragment detected in ProtectedRoute, refreshing session");
+      refreshSession();
+    }
+  }, [location.hash, refreshSession]);
+
   // Ensure we have the latest session data with retry and timeout logic
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -129,6 +141,14 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
+  // Handle OAuth redirects from URL hash
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    console.log("Auth token found in URL, redirecting to dashboard");
+    // Let the auth provider handle the hash, but clean up the URL
+    window.history.replaceState(null, document.title, window.location.pathname);
+    return <Navigate to="/dashboard" replace />;
+  }
+
   // Force redirect to login if we've completed auth check and there's no user
   if ((authCheckComplete || forceComplete) && !user) {
     console.log("Auth check complete, no user found, redirecting to login");
@@ -191,6 +211,13 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
       console.log("Patient accessing professional routes, redirecting to patient dashboard");
       return <Navigate to="/dashboard" replace />;
     }
+  }
+
+  // Special case for root path with authenticated user
+  if (user && location.pathname === '/') {
+    const destination = profile?.user_type === 'patient' ? '/dashboard' : '/organization-dashboard';
+    console.log(`User at root path, redirecting to ${destination}`);
+    return <Navigate to={destination} replace />;
   }
 
   // If user is authenticated and has correct role for the route, render the children
