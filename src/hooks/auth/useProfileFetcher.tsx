@@ -50,22 +50,29 @@ export const useProfileFetcher = ({
       } else {
         console.log("No profile found for user", userId)
         try {
-          console.log("Creating new profile for user:", userId)
           const userResult = await supabase.auth.getUser()
           if (userResult.data?.user) {
             const userData = userResult.data.user
             const userMeta = userData.user_metadata || {}
+            
+            // Handle Google auth metadata
+            const fullName = userMeta?.full_name || 
+                           userMeta?.name || 
+                           userData.email?.split('@')[0] || 
+                           'User'
             const userType = userMeta?.user_type || 'patient'
-            const fullName = userMeta?.full_name || userData.email?.split('@')[0] || 'User'
             
             const { data: newProfile, error: insertError } = await supabase
               .from('profiles')
               .insert([{ 
                 id: userId, 
                 full_name: fullName,
-                user_type: userType
+                user_type: userType,
+                email: userData.email,
+                avatar_url: userMeta?.avatar_url || userMeta?.picture
               }])
               .select()
+              .single()
             
             if (insertError) {
               console.error("Error creating profile:", insertError)
@@ -73,11 +80,9 @@ export const useProfileFetcher = ({
               throw insertError
             }
             
-            if (newProfile && newProfile.length > 0) {
-              console.log("New profile created:", newProfile[0])
-              setProfile(newProfile[0] as Profile)
-              toast.success("Welcome! Your profile has been created.")
-            }
+            console.log("New profile created:", newProfile)
+            setProfile(newProfile as Profile)
+            toast.success("Welcome! Your profile has been created.")
           }
         } catch (profileError) {
           console.error("Error creating profile:", profileError)

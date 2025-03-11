@@ -1,17 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 
-// Using the provided Supabase URL and anon key
 const supabaseUrl = 'https://hucnlvxnwazlqukzsvdb.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1Y25sdnhud2F6bHF1a3pzdmRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE0MTk4NjQsImV4cCI6MjA1Njk5NTg2NH0.TLVa7nRFMpbBxQsCRGtXwx-sUfKTzTLGUohyxhRp6KI'
 
-// Initialize the Supabase client with storage session handling
+// Initialize the Supabase client with updated auth settings
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     storageKey: 'mediflow-auth',
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    flowType: 'pkce'  // Add PKCE flow for better security
   }
 })
 
@@ -20,6 +20,23 @@ console.log('Supabase client initialized')
 // Auth helpers
 export const getCurrentUser = async () => {
   try {
+    // Check for auth fragment in URL and handle it
+    const hasAuthFragment = window.location.hash.includes('access_token') || 
+                          window.location.hash.includes('error_description')
+    
+    if (hasAuthFragment) {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error('Auth fragment error:', error)
+        toast.error('Authentication failed. Please try again.')
+        return null
+      }
+      
+      // Clear the URL fragment after successful auth
+      window.location.hash = ''
+      return data?.session?.user || null
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error) {
