@@ -1,20 +1,39 @@
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserType } from "@/types/auth";
+import { useAuth } from "@/hooks/auth";
+import { toast } from "sonner";
+import {
+  Mail,
+  User as UserIcon,
+  Lock,
+  Loader2,
+  AlertCircle,
+  ArrowLeft,
+  Heart,
+  Building2,
+  Pill,
+  Microscope,
+  Stethoscope
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Mail, User as UserIcon, Lock, Loader2, AlertCircle, Heart, Building2, Pill, Microscope, Stethoscope } from "lucide-react";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { Link } from "react-router-dom";
+import { UserType } from "@/types/auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Login = () => {
-  const { user, profile, isLoading, signIn, signUp, signInWithGoogle, isAuthLoading } = useAuth();
+  const { user, isLoading, profile, signInWithEmail, signUpWithEmail, signInWithGoogle, isAuthLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -22,14 +41,60 @@ const Login = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [userType, setUserType] = useState<UserType>("patient");
   const [authTab, setAuthTab] = useState<"patient" | "professional">("patient");
+  const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
+  const [renderForm, setRenderForm] = useState(false);
 
-  // Redirect if already authenticated
   useEffect(() => {
-    if (user && profile) {
-      const targetRoute = profile.user_type === 'patient' ? '/dashboard' : '/organization-dashboard';
-      navigate(targetRoute, { replace: true });
+    const params = new URLSearchParams(location.search);
+    if (params.get("signup") === "true") {
+      setIsSignUp(true);
     }
-  }, [user, profile, navigate]);
+    if (params.get("type") === "professional") {
+      setAuthTab("professional");
+      if (userType === "patient") {
+        setUserType("doctor");
+      }
+    }
+  }, [location, userType]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInitialAuthCheckComplete(true);
+      setRenderForm(true);
+    }, 600);
+    
+    if (!isLoading) {
+      clearTimeout(timer);
+      setInitialAuthCheckComplete(true);
+      setRenderForm(true);
+    }
+    
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (user && !isLoading && profile) {
+      console.log("User authenticated, navigating to dashboard. User type:", profile.user_type);
+      
+      setTimeout(() => {
+        if (profile?.user_type === "patient") {
+          navigate("/dashboard", { replace: true });
+        } else {
+          navigate("/organization-dashboard", { replace: true });
+        }
+      }, 200);
+    }
+  }, [user, isLoading, profile, navigate]);
+
+  useEffect(() => {
+    if (authError) {
+      const timer = setTimeout(() => {
+        setAuthError(null);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [authError]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,47 +102,99 @@ const Login = () => {
     
     try {
       if (isSignUp) {
-        const result = await signUp(email, password, name, userType);
-        if (result.error) throw result.error;
+        const result = await signUpWithEmail(email, password, name, userType);
+        
+        if (result?.error) throw result.error;
+        if (result?.success) {
+          toast.success(`Sign up successful as ${userType}! Please check your email for verification.`);
+        }
       } else {
-        const result = await signIn(email, password);
-        if (result.error) throw result.error;
+        const result = await signInWithEmail(email, password);
+        
+        if (result?.error) throw result.error;
+        if (result?.success) {
+          toast.success("Signed in successfully!");
+        }
       }
     } catch (error: any) {
-      console.error('Auth error:', error);
-      setAuthError(error.message || `Failed to ${isSignUp ? 'sign up' : 'sign in'}`);
+      console.error(`Error ${isSignUp ? "signing up" : "signing in"}:`, error);
+      setAuthError(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
+      toast.error(error.message || `Failed to ${isSignUp ? "sign up" : "sign in"}`);
     }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setAuthError(null);
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error("Error signing in with Google:", error);
+      setAuthError(error.message || "Failed to sign in with Google");
+      toast.error("Failed to sign in with Google");
+    }
+  };
+
+  const handleUserTypeSelect = (value: string) => {
+    setUserType(value as UserType);
   };
 
   const getUserTypeIcon = () => {
     switch (userType) {
-      case "doctor": return <Stethoscope className="h-5 w-5 text-blue-500" />;
-      case "clinic": return <Building2 className="h-5 w-5 text-green-500" />;
-      case "pharmacy": return <Pill className="h-5 w-5 text-red-500" />;
-      case "laboratory": return <Microscope className="h-5 w-5 text-purple-500" />;
-      default: return <Heart className="h-5 w-5 text-rose-500" />;
+      case "doctor":
+        return <Stethoscope className="h-5 w-5 text-blue-500" />;
+      case "clinic":
+        return <Building2 className="h-5 w-5 text-green-500" />;
+      case "pharmacy":
+        return <Pill className="h-5 w-5 text-red-500" />;
+      case "laboratory":
+        return <Microscope className="h-5 w-5 text-purple-500" />;
+      default:
+        return <Heart className="h-5 w-5 text-rose-500" />;
     }
   };
 
-  if (isLoading) {
+  const goBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/");
+    }
+  };
+
+  const resetAuth = () => {
+    localStorage.removeItem('mediflow-auth');
+    localStorage.removeItem('supabase.auth.token');
+    sessionStorage.clear();
+    toast.info("Auth storage cleared. Try logging in again.");
+  };
+
+  if (!renderForm) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-medical-primary" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between py-4">
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-white font-bold">M</span>
-            </div>
-            <span className="text-xl font-semibold">MediFlow</span>
-          </Link>
-          <ModeToggle />
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={goBack} className="mr-2">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Link to="/" className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-full bg-medical-primary flex items-center justify-center">
+                <span className="text-white font-bold">M</span>
+              </div>
+              <span className="text-xl font-semibold bg-gradient-to-r from-medical-primary to-blue-700 bg-clip-text text-transparent">MediFlow</span>
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={resetAuth}>Reset Auth</Button>
+            <ModeToggle />
+          </div>
         </div>
       </header>
 
@@ -96,7 +213,7 @@ const Login = () => {
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="patient">
+              <TabsTrigger value="patient" className="relative">
                 <Heart className="mr-2 h-4 w-4" />
                 Patient
               </TabsTrigger>
@@ -213,7 +330,7 @@ const Login = () => {
                 </div>
 
                 <Button
-                  onClick={signInWithGoogle}
+                  onClick={handleGoogleSignIn}
                   className="w-full flex items-center justify-center gap-2"
                   variant="outline"
                   type="button"
@@ -236,8 +353,15 @@ const Login = () => {
                     onClick={() => {
                       setIsSignUp(!isSignUp);
                       setAuthError(null);
+                      const url = new URL(window.location.href);
+                      if (isSignUp) {
+                        url.searchParams.delete("signup");
+                      } else {
+                        url.searchParams.set("signup", "true");
+                      }
+                      window.history.pushState({}, "", url);
                     }}
-                    className="text-primary hover:underline text-sm"
+                    className="text-medical-primary hover:underline text-sm"
                   >
                     {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
                   </button>
@@ -291,7 +415,7 @@ const Login = () => {
                       </label>
                       <Select 
                         value={userType} 
-                        onValueChange={(value) => setUserType(value as UserType)}
+                        onValueChange={handleUserTypeSelect}
                       >
                         <SelectTrigger className="w-full pl-10">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -391,8 +515,15 @@ const Login = () => {
                     onClick={() => {
                       setIsSignUp(!isSignUp);
                       setAuthError(null);
+                      const url = new URL(window.location.href);
+                      if (isSignUp) {
+                        url.searchParams.delete("signup");
+                      } else {
+                        url.searchParams.set("signup", "true");
+                      }
+                      window.history.pushState({}, "", url);
                     }}
-                    className="text-primary hover:underline text-sm"
+                    className="text-medical-primary hover:underline text-sm"
                   >
                     {isSignUp ? "Already have a provider account? Sign In" : "Register as a provider"}
                   </button>
